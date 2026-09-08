@@ -198,7 +198,9 @@
   .add-form textarea{ resize:vertical; min-height:60px; }
   .add-form .form-row{ display:flex; gap:8px; }
   .add-form .form-row > *{ flex:1; }
+  .form-heading{ font-size:13px; color:var(--ink-dim); font-weight:600; }
   .form-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  #schedule-delete-btn{ margin-right:auto; }
   .btn{
     font-family:inherit;
     font-size:13.5px;
@@ -289,11 +291,13 @@
     padding:10px 12px;
     margin-bottom:8px;
     border-left:3px solid transparent;
+    cursor:pointer;
   }
   .event-block:last-child{ margin-bottom:0; }
   .event-block.type-call{ background:rgba(47,166,155,0.18); border-left-color:var(--amber); }
   .event-block.type-personal{ background:rgba(185,139,212,0.20); border-left-color:var(--event-personal); }
   .event-block .row{ border-bottom:none; padding:0; }
+  .sub-notes{ font-style:italic; }
 
   .range-nav{
     display:flex;
@@ -335,7 +339,7 @@
   }
   .week-day.is-today .wd-label .num{ color:var(--amber); }
   .week-day .wd-items{ flex:1; min-width:0; }
-  .week-item{ font-size:13.5px; margin-bottom:6px; padding:6px 8px; border-radius:6px; border-left:3px solid transparent; }
+  .week-item{ font-size:13.5px; margin-bottom:6px; padding:6px 8px; border-radius:6px; border-left:3px solid transparent; cursor:pointer; }
   .week-item:last-child{ margin-bottom:0; }
   .week-item.type-call{ background:rgba(47,166,155,0.18); border-left-color:var(--amber); }
   .week-item.type-personal{ background:rgba(185,139,212,0.20); border-left-color:var(--event-personal); }
@@ -392,6 +396,7 @@
     margin-bottom:6px;
     border-radius:6px;
     border-left:3px solid transparent;
+    cursor:pointer;
   }
   .day-unscheduled-item.type-call{ background:rgba(47,166,155,0.18); border-left-color:var(--amber); }
   .day-unscheduled-item.type-personal{ background:rgba(185,139,212,0.20); border-left-color:var(--event-personal); }
@@ -875,8 +880,10 @@
   <!-- SCHEDULE -->
   <div class="view" id="view-schedule">
     <div class="view-title">Schedule</div>
-    <div class="fab" onclick="toggleForm('schedule')"><span class="plus">+</span> Add to schedule</div>
+    <div class="fab" onclick="openNewScheduleForm()"><span class="plus">+</span> Add to schedule</div>
     <div class="add-form" id="form-schedule">
+      <div class="form-heading" id="schedule-form-heading">New entry</div>
+      <input type="hidden" id="sched-editing-id" value="">
       <div class="form-row">
         <input type="date" id="sched-date">
         <select id="sched-type" onchange="updateSchedTypeUI()">
@@ -891,9 +898,11 @@
       <input type="text" id="sched-title" placeholder="What is it">
       <input type="text" id="sched-employer" placeholder="Employer">
       <input type="text" id="sched-venue" placeholder="Venue / location (optional)">
+      <textarea id="sched-notes" placeholder="Notes (optional)"></textarea>
       <div class="form-actions">
-        <button class="btn" onclick="toggleForm('schedule')">Cancel</button>
-        <button class="btn primary" onclick="addSchedule()">Add to schedule</button>
+        <button class="btn" id="schedule-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromScheduleForm()">Delete</button>
+        <button class="btn" onclick="closeScheduleForm()">Cancel</button>
+        <button class="btn primary" id="schedule-save-btn" onclick="saveSchedule()">Add to schedule</button>
       </div>
     </div>
     <div class="sched-legend">
@@ -946,8 +955,10 @@
   <!-- TASKS -->
   <div class="view" id="view-tasks">
     <div class="view-title">Tasks</div>
-    <div class="fab" onclick="toggleForm('task')"><span class="plus">+</span> Add task</div>
+    <div class="fab" onclick="openNewTaskForm()"><span class="plus">+</span> Add task</div>
     <div class="add-form" id="form-task">
+      <div class="form-heading" id="task-form-heading">New task</div>
+      <input type="hidden" id="task-editing-id" value="">
       <input type="text" id="task-text" placeholder="What needs doing">
       <div class="form-row">
         <input type="date" id="task-due">
@@ -960,8 +971,9 @@
         </select>
       </div>
       <div class="form-actions">
+        <button class="btn" id="task-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromTaskForm()">Delete</button>
         <button class="btn" onclick="toggleForm('task')">Cancel</button>
-        <button class="btn primary" onclick="addTask()">Add task</button>
+        <button class="btn primary" id="task-save-btn" onclick="saveTask()">Add task</button>
       </div>
     </div>
     <div id="task-list-open"></div>
@@ -974,12 +986,15 @@
   <!-- NOTES -->
   <div class="view" id="view-notes">
     <div class="view-title">Notes</div>
-    <div class="fab" onclick="toggleForm('note')"><span class="plus">+</span> Add note</div>
+    <div class="fab" onclick="openNewNoteForm()"><span class="plus">+</span> Add note</div>
     <div class="add-form" id="form-note">
+      <div class="form-heading" id="note-form-heading">New note</div>
+      <input type="hidden" id="note-editing-id" value="">
       <textarea id="note-text" placeholder="Jot it down"></textarea>
       <div class="form-actions">
+        <button class="btn" id="note-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromNoteForm()">Delete</button>
         <button class="btn" onclick="toggleForm('note')">Cancel</button>
-        <button class="btn primary" onclick="addNote()">Save note</button>
+        <button class="btn primary" id="note-save-btn" onclick="saveNote()">Save note</button>
       </div>
     </div>
     <div id="notes-list"></div>
@@ -988,12 +1003,14 @@
   <!-- HABITS -->
   <div class="view" id="view-habits">
     <div class="view-title">Habits</div>
-    <div class="fab" onclick="toggleForm('habit')"><span class="plus">+</span> Add habit</div>
+    <div class="fab" onclick="openNewHabitForm()"><span class="plus">+</span> Add habit</div>
     <div class="add-form" id="form-habit">
+      <div class="form-heading" id="habit-form-heading">New habit</div>
+      <input type="hidden" id="habit-editing-id" value="">
       <input type="text" id="habit-name" placeholder="A habit worth keeping">
       <div class="form-actions">
         <button class="btn" onclick="toggleForm('habit')">Cancel</button>
-        <button class="btn primary" onclick="addHabit()">Add habit</button>
+        <button class="btn primary" id="habit-save-btn" onclick="saveHabit()">Add habit</button>
       </div>
     </div>
     <div id="habits-list"></div>
@@ -1013,8 +1030,10 @@
     </div>
 
     <div id="journal-unlocked" style="display:none;">
-      <div class="fab" onclick="toggleForm('journal')"><span class="plus">+</span> New entry</div>
+      <div class="fab" onclick="openNewJournalForm()"><span class="plus">+</span> New entry</div>
       <div class="add-form" id="form-journal">
+        <div class="form-heading" id="journal-form-heading">New entry</div>
+        <input type="hidden" id="journal-editing-id" value="">
         <div class="mood-picker" id="mood-picker">
           <button type="button" class="mood-btn" data-mood="😞" onclick="pickMood(this)">😞</button>
           <button type="button" class="mood-btn" data-mood="😐" onclick="pickMood(this)">😐</button>
@@ -1024,8 +1043,9 @@
         </div>
         <textarea id="journal-text" placeholder="How'd today go?"></textarea>
         <div class="form-actions">
+          <button class="btn" id="journal-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromJournalForm()">Delete</button>
           <button class="btn" onclick="toggleForm('journal')">Cancel</button>
-          <button class="btn primary" onclick="addJournal()">Save entry</button>
+          <button class="btn primary" id="journal-save-btn" onclick="saveJournal()">Save entry</button>
         </div>
       </div>
       <div id="journal-list"></div>
@@ -1035,8 +1055,10 @@
   <!-- MEALS -->
   <div class="view" id="view-meals">
     <div class="view-title">Meal prep</div>
-    <div class="fab" onclick="toggleForm('meal')"><span class="plus">+</span> Add meal</div>
+    <div class="fab" onclick="openNewMealForm()"><span class="plus">+</span> Add meal</div>
     <div class="add-form" id="form-meal">
+      <div class="form-heading" id="meal-form-heading">New meal</div>
+      <input type="hidden" id="meal-editing-id" value="">
       <div class="form-row">
         <input type="date" id="meal-date">
         <select id="meal-type" style="background:var(--bg);border:1px solid var(--rule);color:var(--ink);border-radius:14px;padding:9px 10px;font-family:inherit;">
@@ -1048,8 +1070,9 @@
       </div>
       <input type="text" id="meal-text" placeholder="What's cooking">
       <div class="form-actions">
+        <button class="btn" id="meal-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromMealForm()">Delete</button>
         <button class="btn" onclick="toggleForm('meal')">Cancel</button>
-        <button class="btn primary" onclick="addMeal()">Add to plan</button>
+        <button class="btn primary" id="meal-save-btn" onclick="saveMeal()">Add to plan</button>
       </div>
     </div>
     <div id="meals-list"></div>
@@ -1058,12 +1081,14 @@
   <!-- PLANNING -->
   <div class="view" id="view-planning">
     <div class="view-title">Planning</div>
-    <div class="fab" onclick="toggleForm('plan')"><span class="plus">+</span> Add to the list</div>
+    <div class="fab" onclick="openNewPlanForm()"><span class="plus">+</span> Add to the list</div>
     <div class="add-form" id="form-plan">
+      <div class="form-heading" id="plan-form-heading">New item</div>
+      <input type="hidden" id="plan-editing-id" value="">
       <input type="text" id="plan-text" placeholder="Something to plan for, no rush">
       <div class="form-actions">
         <button class="btn" onclick="toggleForm('plan')">Cancel</button>
-        <button class="btn primary" onclick="addPlan()">Add</button>
+        <button class="btn primary" id="plan-save-btn" onclick="savePlan()">Add</button>
       </div>
     </div>
     <div id="planning-list"></div>
@@ -1079,12 +1104,14 @@
         <span class="routine-reset" onclick="resetRoutine('morning')">Reset</span>
       </div>
       <div id="routine-list-morning"></div>
-      <div class="fab" onclick="toggleForm('routine-morning')"><span class="plus">+</span> Add step</div>
+      <div class="fab" onclick="openNewRoutineForm('morning')"><span class="plus">+</span> Add step</div>
       <div class="add-form" id="form-routine-morning">
+        <div class="form-heading" id="routine-morning-form-heading">New step</div>
+        <input type="hidden" id="routine-morning-editing-id" value="">
         <input type="text" id="routine-morning-text" placeholder="Add a step">
         <div class="form-actions">
           <button class="btn" onclick="toggleForm('routine-morning')">Cancel</button>
-          <button class="btn primary" onclick="addRoutineItem('morning')">Add</button>
+          <button class="btn primary" id="routine-morning-save-btn" onclick="saveRoutineItem('morning')">Add</button>
         </div>
       </div>
     </div>
@@ -1095,12 +1122,14 @@
         <span class="routine-reset" onclick="resetRoutine('night')">Reset</span>
       </div>
       <div id="routine-list-night"></div>
-      <div class="fab" onclick="toggleForm('routine-night')"><span class="plus">+</span> Add step</div>
+      <div class="fab" onclick="openNewRoutineForm('night')"><span class="plus">+</span> Add step</div>
       <div class="add-form" id="form-routine-night">
+        <div class="form-heading" id="routine-night-form-heading">New step</div>
+        <input type="hidden" id="routine-night-editing-id" value="">
         <input type="text" id="routine-night-text" placeholder="Add a step">
         <div class="form-actions">
           <button class="btn" onclick="toggleForm('routine-night')">Cancel</button>
-          <button class="btn primary" onclick="addRoutineItem('night')">Add</button>
+          <button class="btn primary" id="routine-night-save-btn" onclick="saveRoutineItem('night')">Add</button>
         </div>
       </div>
     </div>
@@ -1385,7 +1414,7 @@ function renderDayView(){
 
   const untimedEl = document.getElementById('day-unscheduled');
   untimedEl.innerHTML = untimed.length ? untimed.map(s => `
-    <div class="day-unscheduled-item type-${s.type || 'call'}">${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}</div>
+    <div class="day-unscheduled-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')">${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}</div>
   `).join('') : '';
 
   // Hour rows
@@ -1431,7 +1460,7 @@ function renderDayView(){
     const widthPct = 100/maxCols;
     const leftPct = ev.col*widthPct;
     const showTime = height >= 26;
-    return `<div class="day-event-block type-${ev.s.type || 'call'}" style="top:${top}px;height:${height}px;left:${leftPct}%;width:calc(${widthPct}% - 4px);">
+    return `<div class="day-event-block type-${ev.s.type || 'call'}" style="top:${top}px;height:${height}px;left:${leftPct}%;width:calc(${widthPct}% - 4px);" onclick="editSchedule('${ev.s.id}')">
       <div class="de-title">${escapeHtml(ev.s.title)}</div>
       ${showTime ? `<div class="de-time">${ev.s.time}${ev.s.endTime ? '–' + ev.s.endTime : ''}</div>` : ''}
     </div>`;
@@ -1456,7 +1485,7 @@ function renderWeek(){
     return `<div class="week-day ${iso===today?'is-today':''}">
       <div class="wd-label">${d.toLocaleDateString(undefined,{weekday:'short'})}<span class="num">${d.getDate()}</span></div>
       <div class="wd-items">
-        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}"><span class="wi-time mono">${s.time || '--:--'}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
+        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><span class="wi-time mono">${s.time || '--:--'}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
       </div>
     </div>`;
   }).join('');
@@ -1503,14 +1532,15 @@ function renderMonthDayList(){
   label.textContent = d.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
   const items = data.schedule.filter(s => s.date === selectedMonthDay).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
   listEl.innerHTML = items.length ? items.map(s => `
-    <div class="event-block type-${s.type || 'call'}"><div class="row">
+    <div class="event-block type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><div class="row">
       <div class="time mono">${s.time || '--:--'}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
+        ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
       </div>
-      <div class="del" onclick="deleteSchedule('${s.id}')">✕</div>
+      <div class="del" onclick="event.stopPropagation(); deleteSchedule('${s.id}')">✕</div>
     </div></div>`).join('') : '<div class="empty">Nothing this day.</div>';
 }
 
@@ -1548,7 +1578,64 @@ function updateSchedTypeUI(){
   document.getElementById('sched-employer').placeholder = type === 'personal' ? 'Employer (optional)' : 'Employer';
 }
 
-function addSchedule(){
+function openNewScheduleForm(){
+  resetScheduleForm();
+  document.getElementById('form-schedule').classList.add('open');
+}
+
+function closeScheduleForm(){
+  document.getElementById('form-schedule').classList.remove('open');
+}
+
+function resetScheduleForm(){
+  document.getElementById('sched-editing-id').value = '';
+  document.getElementById('sched-date').value = '';
+  document.getElementById('sched-type').value = 'call';
+  updateSchedTypeUI();
+  document.getElementById('sched-time').value = '';
+  document.getElementById('sched-end-time').value = '';
+  document.getElementById('sched-title').value = '';
+  document.getElementById('sched-employer').value = '';
+  document.getElementById('sched-venue').value = '';
+  document.getElementById('sched-notes').value = '';
+  document.getElementById('schedule-form-heading').textContent = 'New entry';
+  document.getElementById('schedule-save-btn').textContent = 'Add to schedule';
+  document.getElementById('schedule-delete-btn').style.display = 'none';
+}
+
+function editSchedule(id){
+  const s = data.schedule.find(x => x.id === id);
+  if(!s) return;
+  document.getElementById('sched-editing-id').value = s.id;
+  document.getElementById('sched-date').value = s.date || '';
+  document.getElementById('sched-type').value = s.type || 'call';
+  updateSchedTypeUI();
+  document.getElementById('sched-time').value = s.time || '';
+  document.getElementById('sched-end-time').value = s.endTime || '';
+  document.getElementById('sched-title').value = s.title || '';
+  document.getElementById('sched-employer').value = s.employer || s.client || '';
+  document.getElementById('sched-venue').value = s.venue || '';
+  document.getElementById('sched-notes').value = s.notes || '';
+  document.getElementById('schedule-form-heading').textContent = 'Edit entry';
+  document.getElementById('schedule-save-btn').textContent = 'Save changes';
+  document.getElementById('schedule-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-schedule').classList.add('open');
+  document.getElementById('form-schedule').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function deleteFromScheduleForm(){
+  const editingId = document.getElementById('sched-editing-id').value;
+  if(editingId){
+    data.schedule = data.schedule.filter(s => s.id !== editingId);
+    saveData();
+  }
+  closeScheduleForm();
+  resetScheduleForm();
+  renderAll();
+}
+
+function saveSchedule(){
+  const editingId = document.getElementById('sched-editing-id').value;
   const date = document.getElementById('sched-date').value;
   const type = document.getElementById('sched-type').value;
   const time = document.getElementById('sched-time').value;
@@ -1556,20 +1643,19 @@ function addSchedule(){
   const title = document.getElementById('sched-title').value.trim();
   const employer = document.getElementById('sched-employer').value.trim();
   const venue = document.getElementById('sched-venue').value.trim();
+  const notes = document.getElementById('sched-notes').value.trim();
   if(!date || !title){ return; }
   if(type === 'call' && !employer){ return; }
-  data.schedule.push({ id: uid(), date, time, endTime, title, employer, venue, type });
+  if(editingId){
+    const item = data.schedule.find(s => s.id === editingId);
+    if(item){ Object.assign(item, { date, type, time, endTime, title, employer, venue, notes }); }
+  } else {
+    data.schedule.push({ id: uid(), date, time, endTime, title, employer, venue, notes, type });
+  }
   data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   saveData();
-  document.getElementById('sched-date').value='';
-  document.getElementById('sched-type').value='call';
-  updateSchedTypeUI();
-  document.getElementById('sched-time').value='';
-  document.getElementById('sched-end-time').value='';
-  document.getElementById('sched-title').value='';
-  document.getElementById('sched-employer').value='';
-  document.getElementById('sched-venue').value='';
-  toggleForm('schedule');
+  closeScheduleForm();
+  resetScheduleForm();
   renderAll();
 }
 
@@ -1579,16 +1665,49 @@ function deleteSchedule(id){
   renderAll();
 }
 
-function addTask(){
+function openNewTaskForm(){
+  document.getElementById('task-editing-id').value = '';
+  document.getElementById('task-text').value = '';
+  document.getElementById('task-due').value = '';
+  document.getElementById('task-category').value = 'work';
+  document.getElementById('task-form-heading').textContent = 'New task';
+  document.getElementById('task-save-btn').textContent = 'Add task';
+  document.getElementById('task-delete-btn').style.display = 'none';
+  document.getElementById('form-task').classList.add('open');
+}
+
+function editTask(id){
+  const t = data.tasks.find(x => x.id === id);
+  if(!t) return;
+  document.getElementById('task-editing-id').value = t.id;
+  document.getElementById('task-text').value = t.text;
+  document.getElementById('task-due').value = t.due || '';
+  document.getElementById('task-category').value = t.category || 'work';
+  document.getElementById('task-form-heading').textContent = 'Edit task';
+  document.getElementById('task-save-btn').textContent = 'Save changes';
+  document.getElementById('task-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-task').classList.add('open');
+}
+
+function deleteFromTaskForm(){
+  const editingId = document.getElementById('task-editing-id').value;
+  if(editingId) deleteTask(editingId);
+  toggleForm('task');
+}
+
+function saveTask(){
+  const editingId = document.getElementById('task-editing-id').value;
   const text = document.getElementById('task-text').value.trim();
   const due = document.getElementById('task-due').value;
   const category = document.getElementById('task-category').value;
   if(!text) return;
-  data.tasks.push({ id: uid(), text, due, category, done:false });
+  if(editingId){
+    const t = data.tasks.find(x => x.id === editingId);
+    if(t) Object.assign(t, { text, due, category });
+  } else {
+    data.tasks.push({ id: uid(), text, due, category, done:false });
+  }
   saveData();
-  document.getElementById('task-text').value='';
-  document.getElementById('task-due').value='';
-  document.getElementById('task-category').value='work';
   toggleForm('task');
   renderAll();
 }
@@ -1604,12 +1723,43 @@ function deleteTask(id){
   renderAll();
 }
 
-function addNote(){
+function openNewNoteForm(){
+  document.getElementById('note-editing-id').value = '';
+  document.getElementById('note-text').value = '';
+  document.getElementById('note-form-heading').textContent = 'New note';
+  document.getElementById('note-save-btn').textContent = 'Save note';
+  document.getElementById('note-delete-btn').style.display = 'none';
+  document.getElementById('form-note').classList.add('open');
+}
+
+function editNote(id){
+  const n = data.notes.find(x => x.id === id);
+  if(!n) return;
+  document.getElementById('note-editing-id').value = n.id;
+  document.getElementById('note-text').value = n.text;
+  document.getElementById('note-form-heading').textContent = 'Edit note';
+  document.getElementById('note-save-btn').textContent = 'Save changes';
+  document.getElementById('note-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-note').classList.add('open');
+}
+
+function deleteFromNoteForm(){
+  const editingId = document.getElementById('note-editing-id').value;
+  if(editingId) deleteNote(editingId);
+  toggleForm('note');
+}
+
+function saveNote(){
+  const editingId = document.getElementById('note-editing-id').value;
   const text = document.getElementById('note-text').value.trim();
   if(!text) return;
-  data.notes.unshift({ id: uid(), text, createdAt: Date.now() });
+  if(editingId){
+    const n = data.notes.find(x => x.id === editingId);
+    if(n) n.text = text;
+  } else {
+    data.notes.unshift({ id: uid(), text, createdAt: Date.now() });
+  }
   saveData();
-  document.getElementById('note-text').value='';
   toggleForm('note');
   renderAll();
 }
@@ -1620,12 +1770,35 @@ function deleteNote(id){
   renderAll();
 }
 
-function addHabit(){
+function openNewHabitForm(){
+  document.getElementById('habit-editing-id').value = '';
+  document.getElementById('habit-name').value = '';
+  document.getElementById('habit-form-heading').textContent = 'New habit';
+  document.getElementById('habit-save-btn').textContent = 'Add habit';
+  document.getElementById('form-habit').classList.add('open');
+}
+
+function editHabit(id){
+  const h = data.habits.find(x => x.id === id);
+  if(!h) return;
+  document.getElementById('habit-editing-id').value = h.id;
+  document.getElementById('habit-name').value = h.name;
+  document.getElementById('habit-form-heading').textContent = 'Edit habit';
+  document.getElementById('habit-save-btn').textContent = 'Save changes';
+  document.getElementById('form-habit').classList.add('open');
+}
+
+function saveHabit(){
+  const editingId = document.getElementById('habit-editing-id').value;
   const name = document.getElementById('habit-name').value.trim();
   if(!name) return;
-  data.habits.push({ id: uid(), name, doneDates: [] });
+  if(editingId){
+    const h = data.habits.find(x => x.id === editingId);
+    if(h) h.name = name;
+  } else {
+    data.habits.push({ id: uid(), name, doneDates: [] });
+  }
   saveData();
-  document.getElementById('habit-name').value='';
   toggleForm('habit');
   renderAll();
 }
@@ -1667,7 +1840,7 @@ function renderHabits(){
     const streak = habitStreak(h);
     return `<div class="habit-row">
       <div class="habit-top">
-        <div class="habit-name">${escapeHtml(h.name)}</div>
+        <div class="habit-name" style="cursor:pointer;" onclick="editHabit('${h.id}')">${escapeHtml(h.name)}</div>
         <div style="display:flex;align-items:center;gap:10px;">
           ${streak > 0 ? `<span class="habit-streak">🔥 ${streak}</span>` : ''}
           <span class="del" onclick="deleteHabit('${h.id}')">✕</span>
@@ -1687,12 +1860,47 @@ function renderHabits(){
   }).join('') : '<div class="empty">No habits yet. Start with one small thing.</div>';
 }
 
-function addJournal(){
+function openNewJournalForm(){
+  document.getElementById('journal-editing-id').value = '';
+  document.getElementById('journal-text').value = '';
+  pickedMood = '🙂';
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('selected', b.dataset.mood === pickedMood));
+  document.getElementById('journal-form-heading').textContent = 'New entry';
+  document.getElementById('journal-save-btn').textContent = 'Save entry';
+  document.getElementById('journal-delete-btn').style.display = 'none';
+  document.getElementById('form-journal').classList.add('open');
+}
+
+function editJournal(id){
+  const j = data.journal.find(x => x.id === id);
+  if(!j) return;
+  document.getElementById('journal-editing-id').value = j.id;
+  document.getElementById('journal-text').value = j.text;
+  pickedMood = j.mood;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('selected', b.dataset.mood === pickedMood));
+  document.getElementById('journal-form-heading').textContent = 'Edit entry';
+  document.getElementById('journal-save-btn').textContent = 'Save changes';
+  document.getElementById('journal-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-journal').classList.add('open');
+}
+
+function deleteFromJournalForm(){
+  const editingId = document.getElementById('journal-editing-id').value;
+  if(editingId) deleteJournal(editingId);
+  toggleForm('journal');
+}
+
+function saveJournal(){
+  const editingId = document.getElementById('journal-editing-id').value;
   const text = document.getElementById('journal-text').value.trim();
   if(!text) return;
-  data.journal.unshift({ id: uid(), date: todayISO(), mood: pickedMood, text, createdAt: Date.now() });
+  if(editingId){
+    const j = data.journal.find(x => x.id === editingId);
+    if(j){ j.text = text; j.mood = pickedMood; }
+  } else {
+    data.journal.unshift({ id: uid(), date: todayISO(), mood: pickedMood, text, createdAt: Date.now() });
+  }
   saveData();
-  document.getElementById('journal-text').value='';
   toggleForm('journal');
   renderAll();
 }
@@ -1706,25 +1914,59 @@ function deleteJournal(id){
 function renderJournal(){
   const el = document.getElementById('journal-list');
   el.innerHTML = data.journal.length ? data.journal.map(j => `
-    <div class="journal-entry">
+    <div class="journal-entry" style="cursor:pointer;" onclick="editJournal('${j.id}')">
       <div class="je-head">
         <span class="je-mood">${j.mood}</span>
         <span>${new Date(j.createdAt).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span>
-        <span class="del" style="margin-left:auto;cursor:pointer;" onclick="deleteJournal('${j.id}')">delete</span>
+        <span class="del" style="margin-left:auto;cursor:pointer;" onclick="event.stopPropagation(); deleteJournal('${j.id}')">delete</span>
       </div>
       <div class="je-text">${escapeHtml(j.text)}</div>
     </div>`).join('') : '<div class="empty">Nothing written yet.</div>';
 }
 
-function addMeal(){
+function openNewMealForm(){
+  document.getElementById('meal-editing-id').value = '';
+  document.getElementById('meal-date').value = '';
+  document.getElementById('meal-type').value = 'Breakfast';
+  document.getElementById('meal-text').value = '';
+  document.getElementById('meal-form-heading').textContent = 'New meal';
+  document.getElementById('meal-save-btn').textContent = 'Add to plan';
+  document.getElementById('meal-delete-btn').style.display = 'none';
+  document.getElementById('form-meal').classList.add('open');
+}
+
+function editMeal(id){
+  const m = data.meals.find(x => x.id === id);
+  if(!m) return;
+  document.getElementById('meal-editing-id').value = m.id;
+  document.getElementById('meal-date').value = m.date;
+  document.getElementById('meal-type').value = m.type;
+  document.getElementById('meal-text').value = m.text;
+  document.getElementById('meal-form-heading').textContent = 'Edit meal';
+  document.getElementById('meal-save-btn').textContent = 'Save changes';
+  document.getElementById('meal-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-meal').classList.add('open');
+}
+
+function deleteFromMealForm(){
+  const editingId = document.getElementById('meal-editing-id').value;
+  if(editingId) deleteMeal(editingId);
+  toggleForm('meal');
+}
+
+function saveMeal(){
+  const editingId = document.getElementById('meal-editing-id').value;
   const date = document.getElementById('meal-date').value;
   const type = document.getElementById('meal-type').value;
   const text = document.getElementById('meal-text').value.trim();
   if(!date || !text) return;
-  data.meals.push({ id: uid(), date, type, text });
+  if(editingId){
+    const m = data.meals.find(x => x.id === editingId);
+    if(m) Object.assign(m, { date, type, text });
+  } else {
+    data.meals.push({ id: uid(), date, type, text });
+  }
   saveData();
-  document.getElementById('meal-date').value='';
-  document.getElementById('meal-text').value='';
   toggleForm('meal');
   renderAll();
 }
@@ -1747,20 +1989,43 @@ function renderMeals(){
     <div class="meal-group">
       <div class="mg-date">${fmtDate(date)}</div>
       ${grouped[date].map(m => `
-        <div class="meal-item">
+        <div class="meal-item" style="cursor:pointer;" onclick="editMeal('${m.id}')">
           <div class="meal-type">${m.type}</div>
           <div class="body">${escapeHtml(m.text)}</div>
-          <div class="del" onclick="deleteMeal('${m.id}')">✕</div>
+          <div class="del" onclick="event.stopPropagation(); deleteMeal('${m.id}')">✕</div>
         </div>`).join('')}
     </div>`).join('') : '<div class="empty">No meals planned yet.</div>';
 }
 
-function addPlan(){
+function openNewPlanForm(){
+  document.getElementById('plan-editing-id').value = '';
+  document.getElementById('plan-text').value = '';
+  document.getElementById('plan-form-heading').textContent = 'New item';
+  document.getElementById('plan-save-btn').textContent = 'Add';
+  document.getElementById('form-plan').classList.add('open');
+}
+
+function editPlan(id){
+  const p = data.planning.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('plan-editing-id').value = p.id;
+  document.getElementById('plan-text').value = p.text;
+  document.getElementById('plan-form-heading').textContent = 'Edit item';
+  document.getElementById('plan-save-btn').textContent = 'Save changes';
+  document.getElementById('form-plan').classList.add('open');
+}
+
+function savePlan(){
+  const editingId = document.getElementById('plan-editing-id').value;
   const text = document.getElementById('plan-text').value.trim();
   if(!text) return;
-  data.planning.push({ id: uid(), text, done:false });
+  if(editingId){
+    const p = data.planning.find(x => x.id === editingId);
+    if(p) p.text = text;
+  } else {
+    data.planning.push({ id: uid(), text, done:false });
+  }
   saveData();
-  document.getElementById('plan-text').value='';
   toggleForm('plan');
   renderAll();
 }
@@ -1781,18 +2046,41 @@ function renderPlanning(){
   el.innerHTML = data.planning.length ? data.planning.map(p => `
     <div class="plan-row">
       <div class="checkbox ${p.done?'checked':''}" onclick="togglePlan('${p.id}')"></div>
-      <div class="body"><div class="title task-text ${p.done?'done':''}">${escapeHtml(p.text)}</div></div>
+      <div class="body" style="cursor:pointer;" onclick="editPlan('${p.id}')"><div class="title task-text ${p.done?'done':''}">${escapeHtml(p.text)}</div></div>
       <div class="del" onclick="deletePlan('${p.id}')">✕</div>
     </div>`).join('') : '<div class="empty">The list is wide open. Add whatever\'s on your mind.</div>';
 }
 
-function addRoutineItem(key){
+function openNewRoutineForm(key){
+  document.getElementById('routine-' + key + '-editing-id').value = '';
+  document.getElementById('routine-' + key + '-text').value = '';
+  document.getElementById('routine-' + key + '-form-heading').textContent = 'New step';
+  document.getElementById('routine-' + key + '-save-btn').textContent = 'Add';
+  document.getElementById('form-routine-' + key).classList.add('open');
+}
+
+function editRoutineItem(key, id){
+  const item = data.routines[key].find(i => i.id === id);
+  if(!item) return;
+  document.getElementById('routine-' + key + '-editing-id').value = item.id;
+  document.getElementById('routine-' + key + '-text').value = item.text;
+  document.getElementById('routine-' + key + '-form-heading').textContent = 'Edit step';
+  document.getElementById('routine-' + key + '-save-btn').textContent = 'Save changes';
+  document.getElementById('form-routine-' + key).classList.add('open');
+}
+
+function saveRoutineItem(key){
+  const editingId = document.getElementById('routine-' + key + '-editing-id').value;
   const input = document.getElementById('routine-' + key + '-text');
   const text = input.value.trim();
   if(!text) return;
-  data.routines[key].push({ id: uid(), text, done:false });
+  if(editingId){
+    const item = data.routines[key].find(i => i.id === editingId);
+    if(item) item.text = text;
+  } else {
+    data.routines[key].push({ id: uid(), text, done:false });
+  }
   saveData();
-  input.value='';
   toggleForm('routine-' + key);
   renderAll();
 }
@@ -1828,7 +2116,7 @@ function renderRoutineList(key, elId){
   el.innerHTML = items.length ? items.map(i => `
     <div class="routine-row">
       <div class="checkbox ${i.done?'checked':''}" onclick="toggleRoutineItem('${key}','${i.id}')"></div>
-      <div class="body"><div class="title task-text ${i.done?'done':''}">${escapeHtml(i.text)}</div></div>
+      <div class="body"><div class="title task-text ${i.done?'done':''}" style="cursor:pointer;" onclick="editRoutineItem('${key}','${i.id}')">${escapeHtml(i.text)}</div></div>
       <div class="del" onclick="deleteRoutineItem('${key}','${i.id}')">✕</div>
     </div>`).join('') : '<div class="empty">No steps yet. Add the first one.</div>';
 }
@@ -1891,12 +2179,13 @@ function renderAll(){
   const todaySched = data.schedule.filter(s => s.date === today);
   const tsEl = document.getElementById('today-schedule');
   tsEl.innerHTML = todaySched.length ? todaySched.map(s => `
-    <div class="event-block type-${s.type || 'call'}"><div class="row">
+    <div class="event-block type-${s.type || 'call'}" onclick="switchView('schedule'); editSchedule('${s.id}')"><div class="row">
       <div class="time mono">${s.time || '--:--'}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
+        ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
       </div>
     </div></div>`).join('') : '<div class="empty">Nothing on the books today.</div>';
 
@@ -1931,14 +2220,15 @@ function renderAll(){
   const schedEl = document.getElementById('schedule-list');
   const upcoming = [...data.schedule].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   schedEl.innerHTML = upcoming.length ? upcoming.map(s => `
-    <div class="event-block type-${s.type || 'call'}"><div class="row">
+    <div class="event-block type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><div class="row">
       <div class="time mono">${fmtDate(s.date)}<br>${s.time || ''}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
+        ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
       </div>
-      <div class="del" onclick="deleteSchedule('${s.id}')">✕</div>
+      <div class="del" onclick="event.stopPropagation(); deleteSchedule('${s.id}')">✕</div>
     </div></div>`).join('') : '<div class="empty">Nothing on the schedule. Add a call or personal event above.</div>';
 
   if(scheduleMode === 'day') renderDayView();
@@ -1952,7 +2242,7 @@ function renderAll(){
   openEl.innerHTML = openTasks.length ? openTasks.map(t => `
     <div class="row">
       <div class="checkbox" onclick="toggleTask('${t.id}')"></div>
-      <div class="body">
+      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')">
         <div class="title task-text">${escapeHtml(t.text)}</div>
         ${t.due ? `<div class="task-due ${t.due < today ? 'overdue' : ''} mono">${t.due < today ? 'overdue — ' : 'due '}${fmtDate(t.due)}</div>` : ''}
       </div>
@@ -1963,18 +2253,18 @@ function renderAll(){
   doneEl.innerHTML = doneTasks.length ? doneTasks.map(t => `
     <div class="row">
       <div class="checkbox checked" onclick="toggleTask('${t.id}')"></div>
-      <div class="body"><div class="title task-text done">${escapeHtml(t.text)}</div></div>
+      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')"><div class="title task-text done">${escapeHtml(t.text)}</div></div>
       <div class="del" onclick="deleteTask('${t.id}')">✕</div>
     </div>`).join('') : '<div class="empty">Nothing finished yet.</div>';
 
   // Notes
   const notesEl = document.getElementById('notes-list');
   notesEl.innerHTML = data.notes.length ? data.notes.map(n => `
-    <div class="note-card">
+    <div class="note-card" style="cursor:pointer;" onclick="editNote('${n.id}')">
       <div class="note-text">${escapeHtml(n.text)}</div>
       <div class="note-meta">
         <span class="mono">${new Date(n.createdAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>
-        <span class="del" onclick="deleteNote('${n.id}')">delete</span>
+        <span class="del" onclick="event.stopPropagation(); deleteNote('${n.id}')">delete</span>
       </div>
     </div>`).join('') : '<div class="empty">No notes yet. Jot something down.</div>';
 
