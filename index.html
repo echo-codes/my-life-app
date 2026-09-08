@@ -283,6 +283,7 @@
   .legend-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
   .legend-dot.type-call{ background:var(--amber); }
   .legend-dot.type-personal{ background:var(--event-personal); }
+  .import-row{ margin-bottom:16px; }
 
   .time.type-call, .wi-time.type-call{ color:var(--ink); }
   .time.type-personal, .wi-time.type-personal{ color:var(--ink); }
@@ -909,6 +910,10 @@
       <span class="legend-item"><span class="legend-dot type-call"></span>Work call</span>
       <span class="legend-item"><span class="legend-dot type-personal"></span>Personal</span>
     </div>
+    <div class="import-row">
+      <span class="backup-switch" style="padding-left:0;" onclick="triggerScheduleImport()">⇧ Import events</span>
+      <input type="file" id="import-schedule-input" accept="application/json" style="display:none;" onchange="importScheduleEvents(this)">
+    </div>
     <div class="mode-tabs">
       <button class="mode-tab active" data-mode="list" onclick="switchScheduleMode('list')">List</button>
       <button class="mode-tab" data-mode="day" onclick="switchScheduleMode('day')">Day</button>
@@ -1235,17 +1240,17 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 
 const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'function');
 
-// ----  config ----
+// ---- Firebase config ----
 // Fill these in with the values from your Firebase project's Web App settings
 // (Project settings → General → Your apps → SDK setup and configuration).
 // Leaving the placeholders as-is just means the app uses local storage only.
 const firebaseConfig = {
-  apiKey: "AIzaSyCzQfby6i0ii3tboe5DU3YaLNaFwJWzH50",
-    authDomain: "my-life-app-84a4a.firebaseapp.com",
-    projectId: "my-life-app-84a4a",
-    storageBucket: "my-life-app-84a4a.firebasestorage.app",
-    messagingSenderId: "3492333176",
-    appId: "1:3492333176:web:1c44d6c7f9dce228888f8d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY" && !HAS_CLAUDE_STORAGE;
 
@@ -1327,6 +1332,50 @@ function exportBackup(){
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function triggerScheduleImport(){
+  document.getElementById('import-schedule-input').click();
+}
+
+function importScheduleEvents(fileInput){
+  const file = fileInput.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const parsed = JSON.parse(e.target.result);
+      const events = Array.isArray(parsed) ? parsed : (parsed.events || []);
+      if(!events.length){ alert('No events found in that file.'); fileInput.value=''; return; }
+      const existingKeys = new Set(data.schedule.map(s => `${s.date}|${s.time||''}|${s.title}`));
+      let added = 0, skipped = 0;
+      events.forEach(ev => {
+        const key = `${ev.date}|${ev.time||''}|${ev.title}`;
+        if(existingKeys.has(key)){ skipped++; return; }
+        data.schedule.push({
+          id: uid(),
+          date: ev.date,
+          time: ev.time || '',
+          endTime: ev.endTime || '',
+          title: ev.title,
+          employer: ev.employer || '',
+          venue: ev.venue || '',
+          notes: ev.notes || '',
+          type: ev.type || 'personal'
+        });
+        existingKeys.add(key);
+        added++;
+      });
+      data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+      saveData();
+      renderAll();
+      alert(`Imported ${added} event${added===1?'':'s'}.${skipped ? ` Skipped ${skipped} already in your schedule.` : ''}`);
+    }catch(err){
+      alert('That file could not be read as an events import.');
+    }
+    fileInput.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function triggerImport(){
