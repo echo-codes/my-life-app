@@ -1235,17 +1235,17 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 
 const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'function');
 
-// ---- Firebase config ----
+// ----  config ----
 // Fill these in with the values from your Firebase project's Web App settings
 // (Project settings → General → Your apps → SDK setup and configuration).
 // Leaving the placeholders as-is just means the app uses local storage only.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCzQfby6i0ii3tboe5DU3YaLNaFwJWzH50",
+    authDomain: "my-life-app-84a4a.firebaseapp.com",
+    projectId: "my-life-app-84a4a",
+    storageBucket: "my-life-app-84a4a.firebasestorage.app",
+    messagingSenderId: "3492333176",
+    appId: "1:3492333176:web:1c44d6c7f9dce228888f8d"
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY" && !HAS_CLAUDE_STORAGE;
 
