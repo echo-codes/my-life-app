@@ -30,6 +30,7 @@
     --cat-projects:#4FA8D9;
     --cat-cleaning:#E0964A;
     --cat-friends:var(--slate);
+    --cat-personal:var(--event-personal);
     --cat-other:#9C9186;
   }
   body.personal-mode{
@@ -271,6 +272,24 @@
   }
   .sched-mode{ display:none; }
   .sched-mode.active{ display:block; }
+
+  .meal-tab{
+    background:none;
+    border:none;
+    color:var(--ink-dim);
+    font-family:inherit;
+    font-size:13.5px;
+    padding:0 0 10px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+  }
+  .meal-tab.active{
+    color:var(--amber);
+    border-bottom-color:var(--amber);
+  }
+  .meal-mode{ display:none; }
+  .meal-mode.active{ display:block; }
 
   .sched-legend{
     display:flex;
@@ -659,6 +678,23 @@
   .journal-entry .je-mood{ font-size:16px; }
   .journal-entry .je-text{ font-size:14.5px; white-space:pre-wrap; }
 
+  .journal-month{ margin-bottom:6px; }
+  .journal-month-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--rule);
+    cursor:pointer;
+    font-weight:600;
+    font-size:14px;
+  }
+  .journal-month-count{ margin-left:auto; font-weight:400; color:var(--ink-dim); font-size:12px; }
+  .journal-month-head .chevron{ display:inline-block; transition:transform 0.15s ease; color:var(--amber); }
+  .journal-month-head.expanded .chevron{ transform:rotate(90deg); }
+  .journal-month-body{ display:none; }
+  .journal-month-body.expanded{ display:block; }
+
   /* Meals */
   .meal-group{ margin-bottom:18px; }
   .meal-group .mg-date{
@@ -900,6 +936,15 @@
       <input type="text" id="sched-employer" placeholder="Employer">
       <input type="text" id="sched-venue" placeholder="Venue / location (optional)">
       <textarea id="sched-notes" placeholder="Notes (optional)"></textarea>
+      <div class="form-row" id="sched-repeat-row">
+        <select id="sched-repeat" onchange="updateRepeatUI()">
+          <option value="none">Does not repeat</option>
+          <option value="daily">Repeats daily</option>
+          <option value="weekly">Repeats weekly</option>
+          <option value="monthly">Repeats monthly</option>
+        </select>
+        <input type="date" id="sched-repeat-until" style="display:none;">
+      </div>
       <div class="form-actions">
         <button class="btn" id="schedule-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromScheduleForm()">Delete</button>
         <button class="btn" onclick="closeScheduleForm()">Cancel</button>
@@ -913,6 +958,7 @@
     <div class="import-row">
       <span class="backup-switch" style="padding-left:0;" onclick="triggerScheduleImport()">⇧ Import events</span>
       <input type="file" id="import-schedule-input" accept="application/json" style="display:none;" onchange="importScheduleEvents(this)">
+      <span class="backup-switch" onclick="clearOldEvents()">🗑 Clear events 3+ months old</span>
     </div>
     <div class="mode-tabs">
       <button class="mode-tab active" data-mode="list" onclick="switchScheduleMode('list')">List</button>
@@ -953,7 +999,7 @@
       </div>
       <div class="month-grid" id="month-grid"></div>
       <div class="section-label" style="margin-top:18px;"><span id="month-day-label">Select a day</span></div>
-      <div id="month-day-list"></div>
+      <div id="month-day-list" style="padding-bottom:60px;"></div>
     </div>
   </div>
 
@@ -972,6 +1018,7 @@
           <option value="projects">Projects</option>
           <option value="cleaning">Cleaning</option>
           <option value="friends">Friends</option>
+          <option value="personal">Personal</option>
           <option value="other">Other</option>
         </select>
       </div>
@@ -1060,27 +1107,68 @@
   <!-- MEALS -->
   <div class="view" id="view-meals">
     <div class="view-title">Meal prep</div>
-    <div class="fab" onclick="openNewMealForm()"><span class="plus">+</span> Add meal</div>
-    <div class="add-form" id="form-meal">
-      <div class="form-heading" id="meal-form-heading">New meal</div>
-      <input type="hidden" id="meal-editing-id" value="">
-      <div class="form-row">
-        <input type="date" id="meal-date">
-        <select id="meal-type" style="background:var(--bg);border:1px solid var(--rule);color:var(--ink);border-radius:14px;padding:9px 10px;font-family:inherit;">
-          <option value="Breakfast">Breakfast</option>
-          <option value="Lunch">Lunch</option>
-          <option value="Dinner">Dinner</option>
-          <option value="Snack">Snack</option>
-        </select>
-      </div>
-      <input type="text" id="meal-text" placeholder="What's cooking">
-      <div class="form-actions">
-        <button class="btn" id="meal-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromMealForm()">Delete</button>
-        <button class="btn" onclick="toggleForm('meal')">Cancel</button>
-        <button class="btn primary" id="meal-save-btn" onclick="saveMeal()">Add to plan</button>
-      </div>
+    <div class="mode-tabs">
+      <button class="meal-tab active" data-mmode="plan" onclick="switchMealMode('plan')">Plan</button>
+      <button class="meal-tab" data-mmode="shopping" onclick="switchMealMode('shopping')">Shopping list</button>
+      <button class="meal-tab" data-mmode="fridge" onclick="switchMealMode('fridge')">Fridge</button>
     </div>
-    <div id="meals-list"></div>
+
+    <div id="meal-mode-plan" class="meal-mode active">
+      <div class="fab" onclick="openNewMealForm()"><span class="plus">+</span> Add meal</div>
+      <div class="add-form" id="form-meal">
+        <div class="form-heading" id="meal-form-heading">New meal</div>
+        <input type="hidden" id="meal-editing-id" value="">
+        <div class="form-row">
+          <input type="date" id="meal-date">
+          <select id="meal-type" style="background:var(--bg);border:1px solid var(--rule);color:var(--ink);border-radius:14px;padding:9px 10px;font-family:inherit;">
+            <option value="Breakfast">Breakfast</option>
+            <option value="Lunch">Lunch</option>
+            <option value="Dinner">Dinner</option>
+            <option value="Snack">Snack</option>
+          </select>
+        </div>
+        <input type="text" id="meal-text" placeholder="What's cooking">
+        <div class="form-actions">
+          <button class="btn" id="meal-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromMealForm()">Delete</button>
+          <button class="btn" onclick="toggleForm('meal')">Cancel</button>
+          <button class="btn primary" id="meal-save-btn" onclick="saveMeal()">Add to plan</button>
+        </div>
+      </div>
+      <div id="meals-list"></div>
+    </div>
+
+    <div id="meal-mode-shopping" class="meal-mode">
+      <div class="fab" onclick="openNewShoppingForm()"><span class="plus">+</span> Add item</div>
+      <div class="add-form" id="form-shopping">
+        <div class="form-heading" id="shopping-form-heading">New item</div>
+        <input type="hidden" id="shopping-editing-id" value="">
+        <input type="text" id="shopping-text" placeholder="What do you need">
+        <div class="form-actions">
+          <button class="btn" onclick="toggleForm('shopping')">Cancel</button>
+          <button class="btn primary" id="shopping-save-btn" onclick="saveShoppingItem()">Add</button>
+        </div>
+      </div>
+      <div id="shopping-list"></div>
+    </div>
+
+    <div id="meal-mode-fridge" class="meal-mode">
+      <div class="fab" onclick="openNewFridgeForm()"><span class="plus">+</span> Add to fridge</div>
+      <div class="add-form" id="form-fridge">
+        <div class="form-heading" id="fridge-form-heading">New item</div>
+        <input type="hidden" id="fridge-editing-id" value="">
+        <input type="text" id="fridge-text" placeholder="What is it">
+        <div class="form-row">
+          <input type="date" id="fridge-bought" placeholder="Bought">
+          <input type="date" id="fridge-expires" placeholder="Expires">
+        </div>
+        <div class="form-actions">
+          <button class="btn" id="fridge-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromFridgeForm()">Delete</button>
+          <button class="btn" onclick="toggleForm('fridge')">Cancel</button>
+          <button class="btn primary" id="fridge-save-btn" onclick="saveFridgeItem()">Add</button>
+        </div>
+      </div>
+      <div id="fridge-list"></div>
+    </div>
   </div>
 
   <!-- PLANNING -->
@@ -1158,11 +1246,12 @@
 
 <script>
 const STORAGE_KEY = 'lifeapp-data';
-let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: [], night: [] } };
+let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: [], night: [] }, shoppingList: [], fridge: [] };
 let loaded = false;
 let pickedMood = '🙂';
 let journalUnlocked = false;
 let routinePanelExpanded = { morning: false, night: false };
+let mealMode = 'plan';
 
 function ensureShape(){
   data.habits = data.habits || [];
@@ -1172,6 +1261,8 @@ function ensureShape(){
   data.routines = data.routines || { morning: [], night: [] };
   data.routines.morning = data.routines.morning || [];
   data.routines.night = data.routines.night || [];
+  data.shoppingList = data.shoppingList || [];
+  data.fridge = data.fridge || [];
 }
 
 function toggleMode(){
@@ -1378,6 +1469,19 @@ function importScheduleEvents(fileInput){
   reader.readAsText(file);
 }
 
+function clearOldEvents(){
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 3);
+  const cutoffIso = isoOf(cutoff);
+  const oldCount = data.schedule.filter(s => s.date < cutoffIso).length;
+  if(!oldCount){ alert('Nothing older than 3 months to clear.'); return; }
+  if(!confirm(`Delete ${oldCount} event${oldCount===1?'':'s'} from more than 3 months ago? This can't be undone.`)) return;
+  data.schedule = data.schedule.filter(s => s.date >= cutoffIso);
+  saveData();
+  renderAll();
+  alert(`Cleared ${oldCount} old event${oldCount===1?'':'s'}.`);
+}
+
 function triggerImport(){
   document.getElementById('import-file-input').click();
 }
@@ -1426,6 +1530,13 @@ function minutesOf(timeStr){
   if(!timeStr) return null;
   const [h,m] = timeStr.split(':').map(Number);
   return h*60+m;
+}
+
+function switchMealMode(mode){
+  mealMode = mode;
+  document.querySelectorAll('.meal-tab').forEach(b => b.classList.toggle('active', b.dataset.mmode === mode));
+  document.querySelectorAll('.meal-mode').forEach(el => el.classList.remove('active'));
+  document.getElementById('meal-mode-' + mode).classList.add('active');
 }
 
 function switchScheduleMode(mode){
@@ -1627,6 +1738,11 @@ function updateSchedTypeUI(){
   document.getElementById('sched-employer').placeholder = type === 'personal' ? 'Employer (optional)' : 'Employer';
 }
 
+function updateRepeatUI(){
+  const repeat = document.getElementById('sched-repeat').value;
+  document.getElementById('sched-repeat-until').style.display = repeat === 'none' ? 'none' : 'block';
+}
+
 function openNewScheduleForm(){
   resetScheduleForm();
   document.getElementById('form-schedule').classList.add('open');
@@ -1647,6 +1763,10 @@ function resetScheduleForm(){
   document.getElementById('sched-employer').value = '';
   document.getElementById('sched-venue').value = '';
   document.getElementById('sched-notes').value = '';
+  document.getElementById('sched-repeat').value = 'none';
+  document.getElementById('sched-repeat-until').value = '';
+  updateRepeatUI();
+  document.getElementById('sched-repeat-row').style.display = 'flex';
   document.getElementById('schedule-form-heading').textContent = 'New entry';
   document.getElementById('schedule-save-btn').textContent = 'Add to schedule';
   document.getElementById('schedule-delete-btn').style.display = 'none';
@@ -1665,6 +1785,10 @@ function editSchedule(id){
   document.getElementById('sched-employer').value = s.employer || s.client || '';
   document.getElementById('sched-venue').value = s.venue || '';
   document.getElementById('sched-notes').value = s.notes || '';
+  document.getElementById('sched-repeat').value = 'none';
+  document.getElementById('sched-repeat-until').value = '';
+  updateRepeatUI();
+  document.getElementById('sched-repeat-row').style.display = 'none';
   document.getElementById('schedule-form-heading').textContent = 'Edit entry';
   document.getElementById('schedule-save-btn').textContent = 'Save changes';
   document.getElementById('schedule-delete-btn').style.display = 'inline-block';
@@ -1683,6 +1807,14 @@ function deleteFromScheduleForm(){
   renderAll();
 }
 
+function addRepeatInterval(d, repeat){
+  const nd = new Date(d);
+  if(repeat === 'daily') nd.setDate(nd.getDate() + 1);
+  else if(repeat === 'weekly') nd.setDate(nd.getDate() + 7);
+  else if(repeat === 'monthly') nd.setMonth(nd.getMonth() + 1);
+  return nd;
+}
+
 function saveSchedule(){
   const editingId = document.getElementById('sched-editing-id').value;
   const date = document.getElementById('sched-date').value;
@@ -1693,11 +1825,23 @@ function saveSchedule(){
   const employer = document.getElementById('sched-employer').value.trim();
   const venue = document.getElementById('sched-venue').value.trim();
   const notes = document.getElementById('sched-notes').value.trim();
+  const repeat = document.getElementById('sched-repeat').value;
+  const repeatUntil = document.getElementById('sched-repeat-until').value;
   if(!date || !title){ return; }
   if(type === 'call' && !employer){ return; }
   if(editingId){
     const item = data.schedule.find(s => s.id === editingId);
     if(item){ Object.assign(item, { date, type, time, endTime, title, employer, venue, notes }); }
+  } else if(repeat !== 'none' && repeatUntil){
+    const seriesId = uid();
+    let d = new Date(date + 'T00:00:00');
+    const until = new Date(repeatUntil + 'T00:00:00');
+    let count = 0;
+    while(d <= until && count < 52){
+      data.schedule.push({ id: uid(), seriesId, date: isoOf(d), time, endTime, title, employer, venue, notes, type });
+      d = addRepeatInterval(d, repeat);
+      count++;
+    }
   } else {
     data.schedule.push({ id: uid(), date, time, endTime, title, employer, venue, notes, type });
   }
@@ -1960,17 +2104,55 @@ function deleteJournal(id){
   renderAll();
 }
 
+let journalMonthExpanded = {};
+
+function journalMonthKey(ts){
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
+function journalMonthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString(undefined,{month:'long', year:'numeric'});
+}
+
+function toggleJournalMonth(key){
+  journalMonthExpanded[key] = !journalMonthExpanded[key];
+  renderJournal();
+}
+
 function renderJournal(){
   const el = document.getElementById('journal-list');
-  el.innerHTML = data.journal.length ? data.journal.map(j => `
-    <div class="journal-entry" style="cursor:pointer;" onclick="editJournal('${j.id}')">
-      <div class="je-head">
-        <span class="je-mood">${j.mood}</span>
-        <span>${new Date(j.createdAt).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span>
-        <span class="del" style="margin-left:auto;cursor:pointer;" onclick="event.stopPropagation(); deleteJournal('${j.id}')">delete</span>
+  if(!data.journal.length){ el.innerHTML = '<div class="empty">Nothing written yet.</div>'; return; }
+  const groups = {};
+  data.journal.forEach(j => {
+    const key = journalMonthKey(j.createdAt);
+    (groups[key] = groups[key] || []).push(j);
+  });
+  const keys = Object.keys(groups).sort().reverse();
+  const currentKey = journalMonthKey(Date.now());
+  el.innerHTML = keys.map(key => {
+    const expanded = journalMonthExpanded[key] !== undefined ? journalMonthExpanded[key] : (key === currentKey);
+    const entries = groups[key];
+    return `<div class="journal-month">
+      <div class="journal-month-head ${expanded?'expanded':''}" onclick="toggleJournalMonth('${key}')">
+        <span>${journalMonthLabel(key)}</span>
+        <span class="journal-month-count">${entries.length}</span>
+        <span class="chevron">›</span>
       </div>
-      <div class="je-text">${escapeHtml(j.text)}</div>
-    </div>`).join('') : '<div class="empty">Nothing written yet.</div>';
+      <div class="journal-month-body ${expanded?'expanded':''}">
+        ${entries.map(j => `
+          <div class="journal-entry" style="cursor:pointer;" onclick="editJournal('${j.id}')">
+            <div class="je-head">
+              <span class="je-mood">${j.mood}</span>
+              <span>${new Date(j.createdAt).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span>
+              <span class="del" style="margin-left:auto;cursor:pointer;" onclick="event.stopPropagation(); deleteJournal('${j.id}')">delete</span>
+            </div>
+            <div class="je-text">${escapeHtml(j.text)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function openNewMealForm(){
@@ -2044,6 +2226,140 @@ function renderMeals(){
           <div class="del" onclick="event.stopPropagation(); deleteMeal('${m.id}')">✕</div>
         </div>`).join('')}
     </div>`).join('') : '<div class="empty">No meals planned yet.</div>';
+}
+
+function openNewShoppingForm(){
+  document.getElementById('shopping-editing-id').value = '';
+  document.getElementById('shopping-text').value = '';
+  document.getElementById('shopping-form-heading').textContent = 'New item';
+  document.getElementById('shopping-save-btn').textContent = 'Add';
+  document.getElementById('form-shopping').classList.add('open');
+}
+
+function editShoppingItem(id){
+  const item = data.shoppingList.find(x => x.id === id);
+  if(!item) return;
+  document.getElementById('shopping-editing-id').value = item.id;
+  document.getElementById('shopping-text').value = item.text;
+  document.getElementById('shopping-form-heading').textContent = 'Edit item';
+  document.getElementById('shopping-save-btn').textContent = 'Save changes';
+  document.getElementById('form-shopping').classList.add('open');
+}
+
+function saveShoppingItem(){
+  const editingId = document.getElementById('shopping-editing-id').value;
+  const text = document.getElementById('shopping-text').value.trim();
+  if(!text) return;
+  if(editingId){
+    const item = data.shoppingList.find(x => x.id === editingId);
+    if(item) item.text = text;
+  } else {
+    data.shoppingList.push({ id: uid(), text, done:false });
+  }
+  saveData();
+  toggleForm('shopping');
+  renderAll();
+}
+
+function toggleShoppingItem(id){
+  const item = data.shoppingList.find(x => x.id === id);
+  if(item){ item.done = !item.done; saveData(); renderAll(); }
+}
+
+function deleteShoppingItem(id){
+  data.shoppingList = data.shoppingList.filter(x => x.id !== id);
+  saveData();
+  renderAll();
+}
+
+function clearCheckedShopping(){
+  const checkedCount = data.shoppingList.filter(x => x.done).length;
+  if(!checkedCount) return;
+  data.shoppingList = data.shoppingList.filter(x => !x.done);
+  saveData();
+  renderAll();
+}
+
+function renderShoppingList(){
+  const el = document.getElementById('shopping-list');
+  const items = data.shoppingList;
+  const clearRow = items.some(i => i.done) ? `<div class="routine-reset" style="margin-bottom:10px;cursor:pointer;" onclick="clearCheckedShopping()">Clear checked items</div>` : '';
+  el.innerHTML = clearRow + (items.length ? items.map(i => `
+    <div class="plan-row">
+      <div class="checkbox ${i.done?'checked':''}" onclick="toggleShoppingItem('${i.id}')"></div>
+      <div class="body" style="cursor:pointer;" onclick="editShoppingItem('${i.id}')"><div class="title task-text ${i.done?'done':''}">${escapeHtml(i.text)}</div></div>
+      <div class="del" onclick="deleteShoppingItem('${i.id}')">✕</div>
+    </div>`).join('') : '<div class="empty">Shopping list is empty.</div>');
+}
+
+function openNewFridgeForm(){
+  document.getElementById('fridge-editing-id').value = '';
+  document.getElementById('fridge-text').value = '';
+  document.getElementById('fridge-bought').value = '';
+  document.getElementById('fridge-expires').value = '';
+  document.getElementById('fridge-form-heading').textContent = 'New item';
+  document.getElementById('fridge-save-btn').textContent = 'Add';
+  document.getElementById('fridge-delete-btn').style.display = 'none';
+  document.getElementById('form-fridge').classList.add('open');
+}
+
+function editFridgeItem(id){
+  const item = data.fridge.find(x => x.id === id);
+  if(!item) return;
+  document.getElementById('fridge-editing-id').value = item.id;
+  document.getElementById('fridge-text').value = item.text;
+  document.getElementById('fridge-bought').value = item.bought || '';
+  document.getElementById('fridge-expires').value = item.expires || '';
+  document.getElementById('fridge-form-heading').textContent = 'Edit item';
+  document.getElementById('fridge-save-btn').textContent = 'Save changes';
+  document.getElementById('fridge-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-fridge').classList.add('open');
+}
+
+function deleteFromFridgeForm(){
+  const editingId = document.getElementById('fridge-editing-id').value;
+  if(editingId) deleteFridgeItem(editingId);
+  toggleForm('fridge');
+}
+
+function saveFridgeItem(){
+  const editingId = document.getElementById('fridge-editing-id').value;
+  const text = document.getElementById('fridge-text').value.trim();
+  const bought = document.getElementById('fridge-bought').value;
+  const expires = document.getElementById('fridge-expires').value;
+  if(!text) return;
+  if(editingId){
+    const item = data.fridge.find(x => x.id === editingId);
+    if(item) Object.assign(item, { text, bought, expires });
+  } else {
+    data.fridge.push({ id: uid(), text, bought, expires });
+  }
+  saveData();
+  toggleForm('fridge');
+  renderAll();
+}
+
+function deleteFridgeItem(id){
+  data.fridge = data.fridge.filter(x => x.id !== id);
+  saveData();
+  renderAll();
+}
+
+function renderFridge(){
+  const el = document.getElementById('fridge-list');
+  const today = todayISO();
+  const items = [...data.fridge].sort((a,b) => (a.expires||'9999').localeCompare(b.expires||'9999'));
+  el.innerHTML = items.length ? items.map(i => {
+    const expired = i.expires && i.expires < today;
+    return `<div class="row" style="cursor:pointer;" onclick="editFridgeItem('${i.id}')">
+      <div class="body">
+        <div class="title">${escapeHtml(i.text)}</div>
+        ${i.bought ? `<div class="sub">bought ${fmtDate(i.bought)}</div>` : ''}
+        ${i.expires ? `<div class="sub" style="${expired ? 'color:var(--danger);' : ''}">${expired ? 'expired ' : 'expires '}${fmtDate(i.expires)}</div>` : ''}
+      </div>
+      <div class="del" onclick="event.stopPropagation(); deleteFridgeItem('${i.id}')">✕</div>
+    </div>`;
+  }).join('') : '<div class="empty">Nothing in the fridge list yet.</div>';
 }
 
 function openNewPlanForm(){
@@ -2292,7 +2608,7 @@ function renderAll(){
     <div class="row">
       <div class="checkbox" onclick="toggleTask('${t.id}')"></div>
       <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')">
-        <div class="title task-text">${escapeHtml(t.text)}</div>
+        <div class="title task-text" style="color:var(--cat-${t.category || 'other'});">${escapeHtml(t.text)}</div>
         ${t.due ? `<div class="task-due ${t.due < today ? 'overdue' : ''} mono">${t.due < today ? 'overdue — ' : 'due '}${fmtDate(t.due)}</div>` : ''}
       </div>
       <div class="del" onclick="deleteTask('${t.id}')">✕</div>
@@ -2302,7 +2618,7 @@ function renderAll(){
   doneEl.innerHTML = doneTasks.length ? doneTasks.map(t => `
     <div class="row">
       <div class="checkbox checked" onclick="toggleTask('${t.id}')"></div>
-      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')"><div class="title task-text done">${escapeHtml(t.text)}</div></div>
+      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')"><div class="title task-text done" style="color:var(--cat-${t.category || 'other'});">${escapeHtml(t.text)}</div></div>
       <div class="del" onclick="deleteTask('${t.id}')">✕</div>
     </div>`).join('') : '<div class="empty">Nothing finished yet.</div>';
 
@@ -2320,6 +2636,8 @@ function renderAll(){
   renderHabits();
   if(journalUnlocked){ renderJournal(); } else { renderJournalLock(); }
   renderMeals();
+  renderShoppingList();
+  renderFridge();
   renderPlanning();
   renderRoutines();
 }
