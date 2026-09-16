@@ -45,6 +45,17 @@
     --done:#2F7DE1;
     --p-magenta:#E0218A;
   }
+  body.others-mode{
+    --bg:#EDF0E2;
+    --panel:#FFFFFF;
+    --ink:#37432B;
+    --ink-dim:#818F6E;
+    --amber:#7C9A4C;
+    --slate:#C2793D;
+    --rule:#DCE3CD;
+    --danger:#C1523D;
+    --done:#7C9A4C;
+  }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -200,6 +211,7 @@
   .add-form .form-row{ display:flex; gap:8px; }
   .add-form .form-row > *{ flex:1; }
   .form-heading{ font-size:13px; color:var(--ink-dim); font-weight:600; }
+  .field-label{ font-size:11px; color:var(--ink-dim); margin-bottom:4px; }
   .form-actions{ display:flex; gap:8px; justify-content:flex-end; }
   #schedule-delete-btn{ margin-right:auto; }
   .btn{
@@ -490,8 +502,11 @@
   nav button.active{ color:var(--amber); }
   nav button.active .dot{ background:var(--amber); }
   #nav-personal{ display:none; }
+  #nav-others{ display:none; }
   body.personal-mode #nav-work{ display:none; }
   body.personal-mode #nav-personal{ display:flex; }
+  body.others-mode #nav-work{ display:none; }
+  body.others-mode #nav-others{ display:flex; }
 
   .loading{
     padding:40px 20px;
@@ -546,8 +561,14 @@
   .mode-bar{
     display:flex;
     justify-content:space-between;
-    align-items:center;
+    align-items:flex-start;
     padding:14px 20px 0;
+  }
+  .mode-buttons-stack{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    align-items:flex-end;
   }
   .mode-switch{
     font-family:'Quicksand',system-ui,sans-serif;
@@ -564,6 +585,7 @@
     gap:6px;
   }
   body.personal-mode .mode-switch{ color:var(--ink); }
+  body.others-mode .mode-switch{ color:var(--ink); }
 
   .backup-switch{
     font-family:'Quicksand',system-ui,sans-serif;
@@ -576,8 +598,8 @@
     cursor:pointer;
   }
 
-  /* Personal-mode typography & shape overrides */
-  body.personal-mode{ font-family:'Quicksand',system-ui,sans-serif; }
+  /* Personal-mode & Others-mode typography and shape overrides */
+  body.personal-mode, body.others-mode{ font-family:'Quicksand',system-ui,sans-serif; }
   body.personal-mode .view-title{
     font-family:'Fraunces',serif;
     font-weight:600;
@@ -585,26 +607,42 @@
     font-size:26px;
     color:var(--p-magenta);
   }
-  body.personal-mode .today-head .daynum{ font-family:'Fraunces',serif; }
-  body.personal-mode .section-label{
+  body.others-mode .view-title{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-style:italic;
+    font-size:26px;
+    color:var(--amber);
+  }
+  body.personal-mode .today-head .daynum, body.others-mode .today-head .daynum{ font-family:'Fraunces',serif; }
+  body.personal-mode .section-label, body.others-mode .section-label{
     font-family:'Quicksand',system-ui,sans-serif;
     font-weight:600;
     border-bottom-style:dashed;
   }
-  body.personal-mode .add-form,
-  body.personal-mode .add-form input,
-  body.personal-mode .add-form textarea,
-  body.personal-mode .add-form select,
-  body.personal-mode .btn,
-  body.personal-mode .checkbox,
-  body.personal-mode .month-cell,
-  body.personal-mode .month-cell.selected{
+  body.personal-mode .add-form, body.others-mode .add-form,
+  body.personal-mode .add-form input, body.others-mode .add-form input,
+  body.personal-mode .add-form textarea, body.others-mode .add-form textarea,
+  body.personal-mode .add-form select, body.others-mode .add-form select,
+  body.personal-mode .btn, body.others-mode .btn,
+  body.personal-mode .checkbox, body.others-mode .checkbox,
+  body.personal-mode .month-cell, body.others-mode .month-cell,
+  body.personal-mode .month-cell.selected, body.others-mode .month-cell.selected{
     border-radius:14px;
   }
-  body.personal-mode .add-form{ border-style:dashed; }
-  body.personal-mode .btn.primary{ border-radius:20px; font-weight:700; }
-  body.personal-mode .row, body.personal-mode .note-card{ border-bottom-style:dashed; }
-  body.personal-mode .fab .plus{ border-radius:50%; }
+  body.personal-mode .add-form, body.others-mode .add-form{ border-style:dashed; }
+  body.personal-mode .btn.primary, body.others-mode .btn.primary{ border-radius:20px; font-weight:700; }
+  body.personal-mode .row, body.others-mode .row,
+  body.personal-mode .note-card, body.others-mode .note-card{ border-bottom-style:dashed; }
+  body.personal-mode .fab .plus, body.others-mode .fab .plus{ border-radius:50%; }
+  .contact-card{
+    padding:12px 0;
+    border-bottom:1px dashed var(--rule);
+    cursor:pointer;
+  }
+  .contact-card:last-child{ border-bottom:none; }
+  .contact-name{ font-weight:600; font-size:15px; }
+  .contact-sub{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
 
   /* Habits */
   .habit-row{
@@ -785,13 +823,7 @@
   .routine-today-head.expanded .chevron{ transform:rotate(90deg); }
   .routine-today-body{ display:none; padding-top:6px; }
   .routine-today-body.expanded{ display:block; }
-  .routine-reset-inline{
-    font-size:12px;
-    color:var(--ink-dim);
-    text-decoration:underline;
-    cursor:pointer;
-    padding-top:6px;
-  }
+  .routine-progress-row{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
 
   /* Journal lock */
   #journal-lock{
@@ -853,7 +885,7 @@
       <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="importBackup(this)">
       <span class="signout-link" id="signout-link" style="display:none;" onclick="signOutUser()">Sign out</span>
     </span>
-    <button class="mode-switch" id="mode-switch-btn" onclick="toggleMode()">✦ Personal</button>
+    <div id="mode-buttons" class="mode-buttons-stack"></div>
   </div>
 
   <!-- TODAY -->
@@ -892,7 +924,6 @@
       </div>
       <div class="routine-today-body" id="routine-today-body-morning">
         <div id="routine-today-list-morning"></div>
-        <div class="routine-reset-inline" onclick="resetRoutine('morning')">Reset</div>
       </div>
     </div>
 
@@ -904,7 +935,6 @@
       </div>
       <div class="routine-today-body" id="routine-today-body-night">
         <div id="routine-today-list-night"></div>
-        <div class="routine-reset-inline" onclick="resetRoutine('night')">Reset</div>
       </div>
     </div>
 
@@ -947,6 +977,7 @@
       </div>
       <div class="form-actions">
         <button class="btn" id="schedule-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromScheduleForm()">Delete</button>
+        <button class="btn" id="schedule-duplicate-btn" style="display:none;" onclick="duplicateSchedule()">Duplicate</button>
         <button class="btn" onclick="closeScheduleForm()">Cancel</button>
         <button class="btn primary" id="schedule-save-btn" onclick="saveSchedule()">Add to schedule</button>
       </div>
@@ -1158,8 +1189,14 @@
         <input type="hidden" id="fridge-editing-id" value="">
         <input type="text" id="fridge-text" placeholder="What is it">
         <div class="form-row">
-          <input type="date" id="fridge-bought" placeholder="Bought">
-          <input type="date" id="fridge-expires" placeholder="Expires">
+          <div style="flex:1;">
+            <div class="field-label">Bought on</div>
+            <input type="date" id="fridge-bought">
+          </div>
+          <div style="flex:1;">
+            <div class="field-label">Expiration</div>
+            <input type="date" id="fridge-expires">
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn" id="fridge-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromFridgeForm()">Delete</button>
@@ -1179,6 +1216,7 @@
       <div class="form-heading" id="plan-form-heading">New item</div>
       <input type="hidden" id="plan-editing-id" value="">
       <input type="text" id="plan-text" placeholder="Something to plan for, no rush">
+      <textarea id="plan-notes" placeholder="How can we accomplish this?"></textarea>
       <div class="form-actions">
         <button class="btn" onclick="toggleForm('plan')">Cancel</button>
         <button class="btn primary" id="plan-save-btn" onclick="savePlan()">Add</button>
@@ -1194,8 +1232,8 @@
     <div class="routine-block">
       <div class="routine-head">
         <span>Morning routine</span>
-        <span class="routine-reset" onclick="resetRoutine('morning')">Reset</span>
       </div>
+      <div class="routine-progress-row" id="routine-progress-row-morning"></div>
       <div id="routine-list-morning"></div>
       <div class="fab" onclick="openNewRoutineForm('morning')"><span class="plus">+</span> Add step</div>
       <div class="add-form" id="form-routine-morning">
@@ -1212,8 +1250,8 @@
     <div class="routine-block">
       <div class="routine-head">
         <span>Night routine</span>
-        <span class="routine-reset" onclick="resetRoutine('night')">Reset</span>
       </div>
+      <div class="routine-progress-row" id="routine-progress-row-night"></div>
       <div id="routine-list-night"></div>
       <div class="fab" onclick="openNewRoutineForm('night')"><span class="plus">+</span> Add step</div>
       <div class="add-form" id="form-routine-night">
@@ -1226,6 +1264,71 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- PETS -->
+  <div class="view" id="view-pets">
+    <div class="view-title">Pets</div>
+    <div class="fab" onclick="openNewPetForm()"><span class="plus">+</span> Add pet</div>
+    <div class="add-form" id="form-pet">
+      <div class="form-heading" id="pet-form-heading">New pet</div>
+      <input type="hidden" id="pet-editing-id" value="">
+      <input type="text" id="pet-name" placeholder="Pet's name">
+      <input type="text" id="pet-feeding" placeholder="Feeding times (e.g. 7am, 6pm)">
+      <input type="text" id="pet-walks" placeholder="Walk times">
+      <textarea id="pet-diet" placeholder="Diet notes / allergies"></textarea>
+      <textarea id="pet-training" placeholder="Training notes"></textarea>
+      <div class="form-actions">
+        <button class="btn" id="pet-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromPetForm()">Delete</button>
+        <button class="btn" onclick="toggleForm('pet')">Cancel</button>
+        <button class="btn primary" id="pet-save-btn" onclick="savePet()">Add pet</button>
+      </div>
+    </div>
+    <div id="pets-list"></div>
+  </div>
+
+  <!-- PLANTS -->
+  <div class="view" id="view-plants">
+    <div class="view-title">Plants</div>
+    <div class="fab" onclick="openNewPlantForm()"><span class="plus">+</span> Add plant</div>
+    <div class="add-form" id="form-plant">
+      <div class="form-heading" id="plant-form-heading">New plant</div>
+      <input type="hidden" id="plant-editing-id" value="">
+      <input type="text" id="plant-name" placeholder="What do you call it">
+      <input type="text" id="plant-species" placeholder="Species (optional)">
+      <input type="text" id="plant-watering" placeholder="Watering schedule (e.g. every Sunday)">
+      <textarea id="plant-sun" placeholder="Sun needs / notes"></textarea>
+      <div class="form-actions">
+        <button class="btn" id="plant-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromPlantForm()">Delete</button>
+        <button class="btn" onclick="toggleForm('plant')">Cancel</button>
+        <button class="btn primary" id="plant-save-btn" onclick="savePlant()">Add plant</button>
+      </div>
+    </div>
+    <div id="plants-list"></div>
+  </div>
+
+  <!-- FRIENDS -->
+  <div class="view" id="view-friends">
+    <div class="view-title">Friends</div>
+    <div class="fab" onclick="openNewFriendForm()"><span class="plus">+</span> Add friend</div>
+    <div class="add-form" id="form-friend">
+      <div class="form-heading" id="friend-form-heading">New friend</div>
+      <input type="hidden" id="friend-editing-id" value="">
+      <input type="text" id="friend-name" placeholder="Name">
+      <div>
+        <div class="field-label">Birthday</div>
+        <input type="date" id="friend-birthday">
+      </div>
+      <textarea id="friend-likes" placeholder="Likes"></textarea>
+      <textarea id="friend-dislikes" placeholder="Dislikes"></textarea>
+      <div class="form-actions">
+        <button class="btn" id="friend-reach-btn" style="display:none;" onclick="reachOutFriend()">Need to talk / hang out</button>
+        <button class="btn" id="friend-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromFriendForm()">Delete</button>
+        <button class="btn" onclick="toggleForm('friend')">Cancel</button>
+        <button class="btn primary" id="friend-save-btn" onclick="saveFriend()">Add friend</button>
+      </div>
+    </div>
+    <div id="friends-list"></div>
   </div>
 
   <nav id="nav-work">
@@ -1242,34 +1345,104 @@
     <button data-view="planning" onclick="switchView('planning')"><span class="dot"></span>Planning</button>
     <button data-view="journal" onclick="switchView('journal')"><span class="dot"></span>Journal</button>
   </nav>
+
+  <nav id="nav-others">
+    <button data-view="pets" onclick="switchView('pets')"><span class="dot"></span>Pets</button>
+    <button data-view="plants" onclick="switchView('plants')"><span class="dot"></span>Plants</button>
+    <button data-view="friends" onclick="switchView('friends')"><span class="dot"></span>Friends</button>
+  </nav>
 </div>
 
 <script>
 const STORAGE_KEY = 'lifeapp-data';
-let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: [], night: [] }, shoppingList: [], fridge: [] };
+let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: { items: [], log: [] }, night: { items: [], log: [] }, lastReset: '' }, shoppingList: [], fridge: [], pets: [], plants: [], friends: [] };
 let loaded = false;
 let pickedMood = '🙂';
 let journalUnlocked = false;
 let routinePanelExpanded = { morning: false, night: false };
 let mealMode = 'plan';
+let currentMode = 'work';
+
+function routineDayISO(){
+  const now = new Date();
+  const shifted = new Date(now);
+  if(now.getHours() < 3){ shifted.setDate(shifted.getDate() - 1); }
+  return isoOf(shifted);
+}
 
 function ensureShape(){
   data.habits = data.habits || [];
   data.journal = data.journal || [];
   data.meals = data.meals || [];
   data.planning = data.planning || [];
-  data.routines = data.routines || { morning: [], night: [] };
-  data.routines.morning = data.routines.morning || [];
-  data.routines.night = data.routines.night || [];
   data.shoppingList = data.shoppingList || [];
   data.fridge = data.fridge || [];
+  data.pets = data.pets || [];
+  data.plants = data.plants || [];
+  data.friends = data.friends || [];
+
+  data.routines = data.routines || {};
+  ['morning','night'].forEach(key => {
+    const r = data.routines[key];
+    if(Array.isArray(r)){
+      // migrate old flat-array format
+      data.routines[key] = { items: r, log: [] };
+    } else if(!r){
+      data.routines[key] = { items: [], log: [] };
+    } else {
+      r.items = r.items || [];
+      r.log = r.log || [];
+    }
+  });
+  if(!data.routines.lastReset){ data.routines.lastReset = routineDayISO(); }
 }
 
-function toggleMode(){
-  const nowPersonal = document.body.classList.toggle('personal-mode');
-  const btn = document.getElementById('mode-switch-btn');
-  btn.textContent = nowPersonal ? '💼 Work' : '✦ Personal';
-  switchView(nowPersonal ? 'habits' : 'today');
+function checkRoutineReset(){
+  const currentDay = routineDayISO();
+  if(data.routines.lastReset === currentDay) return;
+  ['morning','night'].forEach(key => {
+    const r = data.routines[key];
+    if(r.items.length && r.items.every(i => i.done) && data.routines.lastReset){
+      if(!r.log.includes(data.routines.lastReset)) r.log.push(data.routines.lastReset);
+    }
+    r.items.forEach(i => i.done = false);
+  });
+  data.routines.lastReset = currentDay;
+  saveData();
+}
+
+function routineStreak(key){
+  const r = data.routines[key];
+  let count = (r.items.length && r.items.every(i => i.done)) ? 1 : 0;
+  let d = new Date();
+  if(d.getHours() < 3) d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - 1);
+  while(true){
+    const iso = isoOf(d);
+    if(r.log.includes(iso)){ count++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return count;
+}
+
+const MODE_INFO = {
+  work: { icon:'💼', label:'Work', bodyClass:null, defaultView:'today' },
+  personal: { icon:'✦', label:'Personal', bodyClass:'personal-mode', defaultView:'habits' },
+  others: { icon:'🐾', label:'Others', bodyClass:'others-mode', defaultView:'pets' }
+};
+
+function renderModeButtons(){
+  const container = document.getElementById('mode-buttons');
+  const others = Object.keys(MODE_INFO).filter(m => m !== currentMode);
+  container.innerHTML = others.map(m => `<button class="mode-switch" onclick="switchMode('${m}')">${MODE_INFO[m].icon} ${MODE_INFO[m].label}</button>`).join('');
+}
+
+function switchMode(mode){
+  currentMode = mode;
+  document.body.classList.remove('personal-mode','others-mode');
+  if(MODE_INFO[mode].bodyClass) document.body.classList.add(MODE_INFO[mode].bodyClass);
+  renderModeButtons();
+  switchView(MODE_INFO[mode].defaultView);
 }
 
 function pickMood(btn){
@@ -1336,12 +1509,12 @@ const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'f
 // (Project settings → General → Your apps → SDK setup and configuration).
 // Leaving the placeholders as-is just means the app uses local storage only.
 const firebaseConfig = {
-  apiKey: "AIzaSyCzQfby6i0ii3tboe5DU3YaLNaFwJWzH50",
-  authDomain: "my-life-app-84a4a.firebaseapp.com",
-  projectId: "my-life-app-84a4a",
-  storageBucket: "my-life-app-84a4a.firebasestorage.app",
-  messagingSenderId: "3492333176",
-  appId: "1:3492333176:web:1c44d6c7f9dce228888f8d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY" && !HAS_CLAUDE_STORAGE;
 
@@ -1393,6 +1566,7 @@ async function loadData(){
     // no existing data yet, start fresh
   }
   ensureShape();
+  checkRoutineReset();
   loaded = true;
   document.getElementById('loading').style.display = 'none';
   renderAll();
@@ -1645,7 +1819,7 @@ function renderWeek(){
     return `<div class="week-day ${iso===today?'is-today':''}">
       <div class="wd-label">${d.toLocaleDateString(undefined,{weekday:'short'})}<span class="num">${d.getDate()}</span></div>
       <div class="wd-items">
-        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><span class="wi-time mono">${s.time || '--:--'}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
+        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><span class="wi-time mono">${timeRange(s)}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
       </div>
     </div>`;
   }).join('');
@@ -1693,7 +1867,7 @@ function renderMonthDayList(){
   const items = data.schedule.filter(s => s.date === selectedMonthDay).sort((a,b)=> (a.time||'').localeCompare(b.time||''));
   listEl.innerHTML = items.length ? items.map(s => `
     <div class="event-block type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><div class="row">
-      <div class="time mono">${s.time || '--:--'}</div>
+      <div class="time mono">${timeRange(s)}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
@@ -1726,6 +1900,11 @@ function fmtDate(iso){
   if(!iso) return '';
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+}
+
+function timeRange(s){
+  if(!s.time) return '--:--';
+  return s.time + (s.endTime ? '–' + s.endTime : '');
 }
 
 function todayISO(){
@@ -1770,6 +1949,7 @@ function resetScheduleForm(){
   document.getElementById('schedule-form-heading').textContent = 'New entry';
   document.getElementById('schedule-save-btn').textContent = 'Add to schedule';
   document.getElementById('schedule-delete-btn').style.display = 'none';
+  document.getElementById('schedule-duplicate-btn').style.display = 'none';
 }
 
 function editSchedule(id){
@@ -1792,8 +1972,30 @@ function editSchedule(id){
   document.getElementById('schedule-form-heading').textContent = 'Edit entry';
   document.getElementById('schedule-save-btn').textContent = 'Save changes';
   document.getElementById('schedule-delete-btn').style.display = 'inline-block';
+  document.getElementById('schedule-duplicate-btn').style.display = 'inline-block';
   document.getElementById('form-schedule').classList.add('open');
   document.getElementById('form-schedule').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function duplicateSchedule(){
+  const type = document.getElementById('sched-type').value;
+  const time = document.getElementById('sched-time').value;
+  const endTime = document.getElementById('sched-end-time').value;
+  const title = document.getElementById('sched-title').value;
+  const employer = document.getElementById('sched-employer').value;
+  const venue = document.getElementById('sched-venue').value;
+  const notes = document.getElementById('sched-notes').value;
+  resetScheduleForm();
+  document.getElementById('sched-type').value = type;
+  updateSchedTypeUI();
+  document.getElementById('sched-time').value = time;
+  document.getElementById('sched-end-time').value = endTime;
+  document.getElementById('sched-title').value = title;
+  document.getElementById('sched-employer').value = employer;
+  document.getElementById('sched-venue').value = venue;
+  document.getElementById('sched-notes').value = notes;
+  document.getElementById('schedule-form-heading').textContent = 'New entry (duplicate)';
+  document.getElementById('sched-date').focus();
 }
 
 function deleteFromScheduleForm(){
@@ -2362,9 +2564,221 @@ function renderFridge(){
   }).join('') : '<div class="empty">Nothing in the fridge list yet.</div>';
 }
 
+/* ---- Pets ---- */
+function openNewPetForm(){
+  document.getElementById('pet-editing-id').value = '';
+  document.getElementById('pet-name').value = '';
+  document.getElementById('pet-feeding').value = '';
+  document.getElementById('pet-walks').value = '';
+  document.getElementById('pet-diet').value = '';
+  document.getElementById('pet-training').value = '';
+  document.getElementById('pet-form-heading').textContent = 'New pet';
+  document.getElementById('pet-save-btn').textContent = 'Add pet';
+  document.getElementById('pet-delete-btn').style.display = 'none';
+  document.getElementById('form-pet').classList.add('open');
+}
+
+function editPet(id){
+  const p = data.pets.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('pet-editing-id').value = p.id;
+  document.getElementById('pet-name').value = p.name || '';
+  document.getElementById('pet-feeding').value = p.feeding || '';
+  document.getElementById('pet-walks').value = p.walks || '';
+  document.getElementById('pet-diet').value = p.dietNotes || '';
+  document.getElementById('pet-training').value = p.trainingNotes || '';
+  document.getElementById('pet-form-heading').textContent = 'Edit pet';
+  document.getElementById('pet-save-btn').textContent = 'Save changes';
+  document.getElementById('pet-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-pet').classList.add('open');
+}
+
+function deleteFromPetForm(){
+  const editingId = document.getElementById('pet-editing-id').value;
+  if(editingId){ data.pets = data.pets.filter(x => x.id !== editingId); saveData(); }
+  toggleForm('pet');
+  renderAll();
+}
+
+function savePet(){
+  const editingId = document.getElementById('pet-editing-id').value;
+  const name = document.getElementById('pet-name').value.trim();
+  const feeding = document.getElementById('pet-feeding').value.trim();
+  const walks = document.getElementById('pet-walks').value.trim();
+  const dietNotes = document.getElementById('pet-diet').value.trim();
+  const trainingNotes = document.getElementById('pet-training').value.trim();
+  if(!name) return;
+  if(editingId){
+    const p = data.pets.find(x => x.id === editingId);
+    if(p) Object.assign(p, { name, feeding, walks, dietNotes, trainingNotes });
+  } else {
+    data.pets.push({ id: uid(), name, feeding, walks, dietNotes, trainingNotes });
+  }
+  saveData();
+  toggleForm('pet');
+  renderAll();
+}
+
+function renderPets(){
+  const el = document.getElementById('pets-list');
+  el.innerHTML = data.pets.length ? data.pets.map(p => `
+    <div class="contact-card" onclick="editPet('${p.id}')">
+      <div class="contact-name">${escapeHtml(p.name)}</div>
+      ${p.feeding ? `<div class="contact-sub">Feeding: ${escapeHtml(p.feeding)}</div>` : ''}
+      ${p.walks ? `<div class="contact-sub">Walks: ${escapeHtml(p.walks)}</div>` : ''}
+      ${p.dietNotes ? `<div class="contact-sub">Diet: ${escapeHtml(p.dietNotes)}</div>` : ''}
+      ${p.trainingNotes ? `<div class="contact-sub">Training: ${escapeHtml(p.trainingNotes)}</div>` : ''}
+    </div>`).join('') : '<div class="empty">No pets added yet.</div>';
+}
+
+/* ---- Plants ---- */
+function openNewPlantForm(){
+  document.getElementById('plant-editing-id').value = '';
+  document.getElementById('plant-name').value = '';
+  document.getElementById('plant-species').value = '';
+  document.getElementById('plant-watering').value = '';
+  document.getElementById('plant-sun').value = '';
+  document.getElementById('plant-form-heading').textContent = 'New plant';
+  document.getElementById('plant-save-btn').textContent = 'Add plant';
+  document.getElementById('plant-delete-btn').style.display = 'none';
+  document.getElementById('form-plant').classList.add('open');
+}
+
+function editPlant(id){
+  const p = data.plants.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('plant-editing-id').value = p.id;
+  document.getElementById('plant-name').value = p.name || '';
+  document.getElementById('plant-species').value = p.species || '';
+  document.getElementById('plant-watering').value = p.watering || '';
+  document.getElementById('plant-sun').value = p.sunNotes || '';
+  document.getElementById('plant-form-heading').textContent = 'Edit plant';
+  document.getElementById('plant-save-btn').textContent = 'Save changes';
+  document.getElementById('plant-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-plant').classList.add('open');
+}
+
+function deleteFromPlantForm(){
+  const editingId = document.getElementById('plant-editing-id').value;
+  if(editingId){ data.plants = data.plants.filter(x => x.id !== editingId); saveData(); }
+  toggleForm('plant');
+  renderAll();
+}
+
+function savePlant(){
+  const editingId = document.getElementById('plant-editing-id').value;
+  const name = document.getElementById('plant-name').value.trim();
+  const species = document.getElementById('plant-species').value.trim();
+  const watering = document.getElementById('plant-watering').value.trim();
+  const sunNotes = document.getElementById('plant-sun').value.trim();
+  if(!name) return;
+  if(editingId){
+    const p = data.plants.find(x => x.id === editingId);
+    if(p) Object.assign(p, { name, species, watering, sunNotes });
+  } else {
+    data.plants.push({ id: uid(), name, species, watering, sunNotes });
+  }
+  saveData();
+  toggleForm('plant');
+  renderAll();
+}
+
+function renderPlants(){
+  const el = document.getElementById('plants-list');
+  el.innerHTML = data.plants.length ? data.plants.map(p => `
+    <div class="contact-card" onclick="editPlant('${p.id}')">
+      <div class="contact-name">${escapeHtml(p.name)}</div>
+      ${p.species ? `<div class="contact-sub">${escapeHtml(p.species)}</div>` : ''}
+      ${p.watering ? `<div class="contact-sub">Watering: ${escapeHtml(p.watering)}</div>` : ''}
+      ${p.sunNotes ? `<div class="contact-sub">${escapeHtml(p.sunNotes)}</div>` : ''}
+    </div>`).join('') : '<div class="empty">No plants added yet.</div>';
+}
+
+/* ---- Friends ---- */
+function tomorrowISO(){
+  const d = new Date();
+  d.setDate(d.getDate()+1);
+  return isoOf(d);
+}
+
+function openNewFriendForm(){
+  document.getElementById('friend-editing-id').value = '';
+  document.getElementById('friend-name').value = '';
+  document.getElementById('friend-birthday').value = '';
+  document.getElementById('friend-likes').value = '';
+  document.getElementById('friend-dislikes').value = '';
+  document.getElementById('friend-form-heading').textContent = 'New friend';
+  document.getElementById('friend-save-btn').textContent = 'Add friend';
+  document.getElementById('friend-delete-btn').style.display = 'none';
+  document.getElementById('friend-reach-btn').style.display = 'none';
+  document.getElementById('form-friend').classList.add('open');
+}
+
+function editFriend(id){
+  const f = data.friends.find(x => x.id === id);
+  if(!f) return;
+  document.getElementById('friend-editing-id').value = f.id;
+  document.getElementById('friend-name').value = f.name || '';
+  document.getElementById('friend-birthday').value = f.birthday || '';
+  document.getElementById('friend-likes').value = f.likes || '';
+  document.getElementById('friend-dislikes').value = f.dislikes || '';
+  document.getElementById('friend-form-heading').textContent = 'Edit friend';
+  document.getElementById('friend-save-btn').textContent = 'Save changes';
+  document.getElementById('friend-delete-btn').style.display = 'inline-block';
+  document.getElementById('friend-reach-btn').style.display = 'inline-block';
+  document.getElementById('form-friend').classList.add('open');
+}
+
+function deleteFromFriendForm(){
+  const editingId = document.getElementById('friend-editing-id').value;
+  if(editingId){ data.friends = data.friends.filter(x => x.id !== editingId); saveData(); }
+  toggleForm('friend');
+  renderAll();
+}
+
+function reachOutFriend(){
+  const editingId = document.getElementById('friend-editing-id').value;
+  const f = data.friends.find(x => x.id === editingId);
+  if(!f) return;
+  data.tasks.push({ id: uid(), text: `Reach out to ${f.name}`, due: tomorrowISO(), category: 'friends', done:false });
+  saveData();
+  toggleForm('friend');
+  renderAll();
+  alert(`Added a task to reach out to ${f.name} tomorrow.`);
+}
+
+function saveFriend(){
+  const editingId = document.getElementById('friend-editing-id').value;
+  const name = document.getElementById('friend-name').value.trim();
+  const birthday = document.getElementById('friend-birthday').value;
+  const likes = document.getElementById('friend-likes').value.trim();
+  const dislikes = document.getElementById('friend-dislikes').value.trim();
+  if(!name) return;
+  if(editingId){
+    const f = data.friends.find(x => x.id === editingId);
+    if(f) Object.assign(f, { name, birthday, likes, dislikes });
+  } else {
+    data.friends.push({ id: uid(), name, birthday, likes, dislikes });
+  }
+  saveData();
+  toggleForm('friend');
+  renderAll();
+}
+
+function renderFriends(){
+  const el = document.getElementById('friends-list');
+  const sorted = [...data.friends].sort((a,b) => a.name.localeCompare(b.name));
+  el.innerHTML = sorted.length ? sorted.map(f => `
+    <div class="contact-card" onclick="editFriend('${f.id}')">
+      <div class="contact-name">${escapeHtml(f.name)}</div>
+      ${f.birthday ? `<div class="contact-sub">Birthday: ${fmtDate(f.birthday)}</div>` : ''}
+    </div>`).join('') : '<div class="empty">No friends added yet.</div>';
+}
+
 function openNewPlanForm(){
   document.getElementById('plan-editing-id').value = '';
   document.getElementById('plan-text').value = '';
+  document.getElementById('plan-notes').value = '';
   document.getElementById('plan-form-heading').textContent = 'New item';
   document.getElementById('plan-save-btn').textContent = 'Add';
   document.getElementById('form-plan').classList.add('open');
@@ -2375,6 +2789,7 @@ function editPlan(id){
   if(!p) return;
   document.getElementById('plan-editing-id').value = p.id;
   document.getElementById('plan-text').value = p.text;
+  document.getElementById('plan-notes').value = p.notes || '';
   document.getElementById('plan-form-heading').textContent = 'Edit item';
   document.getElementById('plan-save-btn').textContent = 'Save changes';
   document.getElementById('form-plan').classList.add('open');
@@ -2383,12 +2798,13 @@ function editPlan(id){
 function savePlan(){
   const editingId = document.getElementById('plan-editing-id').value;
   const text = document.getElementById('plan-text').value.trim();
+  const notes = document.getElementById('plan-notes').value.trim();
   if(!text) return;
   if(editingId){
     const p = data.planning.find(x => x.id === editingId);
-    if(p) p.text = text;
+    if(p){ p.text = text; p.notes = notes; }
   } else {
-    data.planning.push({ id: uid(), text, done:false });
+    data.planning.push({ id: uid(), text, notes, done:false });
   }
   saveData();
   toggleForm('plan');
@@ -2425,7 +2841,7 @@ function openNewRoutineForm(key){
 }
 
 function editRoutineItem(key, id){
-  const item = data.routines[key].find(i => i.id === id);
+  const item = data.routines[key].items.find(i => i.id === id);
   if(!item) return;
   document.getElementById('routine-' + key + '-editing-id').value = item.id;
   document.getElementById('routine-' + key + '-text').value = item.text;
@@ -2440,10 +2856,10 @@ function saveRoutineItem(key){
   const text = input.value.trim();
   if(!text) return;
   if(editingId){
-    const item = data.routines[key].find(i => i.id === editingId);
+    const item = data.routines[key].items.find(i => i.id === editingId);
     if(item) item.text = text;
   } else {
-    data.routines[key].push({ id: uid(), text, done:false });
+    data.routines[key].items.push({ id: uid(), text, done:false });
   }
   saveData();
   toggleForm('routine-' + key);
@@ -2451,18 +2867,12 @@ function saveRoutineItem(key){
 }
 
 function toggleRoutineItem(key, id){
-  const item = data.routines[key].find(i => i.id === id);
+  const item = data.routines[key].items.find(i => i.id === id);
   if(item){ item.done = !item.done; saveData(); renderAll(); }
 }
 
 function deleteRoutineItem(key, id){
-  data.routines[key] = data.routines[key].filter(i => i.id !== id);
-  saveData();
-  renderAll();
-}
-
-function resetRoutine(key){
-  data.routines[key].forEach(i => i.done = false);
+  data.routines[key].items = data.routines[key].items.filter(i => i.id !== id);
   saveData();
   renderAll();
 }
@@ -2477,7 +2887,7 @@ function toggleRoutinePanel(key){
 
 function renderRoutineList(key, elId){
   const el = document.getElementById(elId);
-  const items = data.routines[key];
+  const items = data.routines[key].items;
   el.innerHTML = items.length ? items.map(i => `
     <div class="routine-row">
       <div class="checkbox ${i.done?'checked':''}" onclick="toggleRoutineItem('${key}','${i.id}')"></div>
@@ -2486,14 +2896,39 @@ function renderRoutineList(key, elId){
     </div>`).join('') : '<div class="empty">No steps yet. Add the first one.</div>';
 }
 
+function renderRoutineProgress(key, elId){
+  const el = document.getElementById(elId);
+  const r = data.routines[key];
+  const streak = routineStreak(key);
+  const today = todayISO();
+  const weekStart = startOfWeek(new Date());
+  const weekDays = [];
+  for(let i=0;i<7;i++){ const d = new Date(weekStart); d.setDate(d.getDate()+i); weekDays.push(d); }
+  const todayDone = r.items.length && r.items.every(i => i.done);
+  el.innerHTML = `
+    ${streak > 0 ? `<span class="habit-streak">🔥 ${streak}</span>` : ''}
+    <div class="habit-week">
+      ${weekDays.map(d => {
+        const iso = isoOf(d);
+        const filled = r.log.includes(iso) || (iso === today && todayDone);
+        return `<div class="habit-day">
+          <span class="dow">${d.toLocaleDateString(undefined,{weekday:'narrow'})}</span>
+          <div class="habit-dot ${filled?'filled':''} ${iso===today?'today-ring':''}">${filled ? '✓' : ''}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 function renderRoutines(){
   renderRoutineList('morning', 'routine-list-morning');
   renderRoutineList('night', 'routine-list-night');
+  renderRoutineProgress('morning', 'routine-progress-row-morning');
+  renderRoutineProgress('night', 'routine-progress-row-night');
 }
 
 function renderTodayRoutines(){
   ['morning','night'].forEach(key => {
-    const items = data.routines[key];
+    const items = data.routines[key].items;
     const doneCount = items.filter(i => i.done).length;
     const progEl = document.getElementById('routine-progress-' + key);
     if(progEl) progEl.textContent = items.length ? `${doneCount}/${items.length}` : '';
@@ -2545,7 +2980,7 @@ function renderAll(){
   const tsEl = document.getElementById('today-schedule');
   tsEl.innerHTML = todaySched.length ? todaySched.map(s => `
     <div class="event-block type-${s.type || 'call'}" onclick="switchView('schedule'); editSchedule('${s.id}')"><div class="row">
-      <div class="time mono">${s.time || '--:--'}</div>
+      <div class="time mono">${timeRange(s)}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
@@ -2586,7 +3021,7 @@ function renderAll(){
   const upcoming = [...data.schedule].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   schedEl.innerHTML = upcoming.length ? upcoming.map(s => `
     <div class="event-block type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><div class="row">
-      <div class="time mono">${fmtDate(s.date)}<br>${s.time || ''}</div>
+      <div class="time mono">${fmtDate(s.date)}<br>${s.time ? timeRange(s) : ''}</div>
       <div class="body">
         <div class="title">${escapeHtml(s.title)}</div>
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
@@ -2640,6 +3075,9 @@ function renderAll(){
   renderFridge();
   renderPlanning();
   renderRoutines();
+  renderPets();
+  renderPlants();
+  renderFriends();
 }
 
 function escapeHtml(str){
@@ -2647,6 +3085,8 @@ function escapeHtml(str){
   d.textContent = str;
   return d.innerHTML;
 }
+
+renderModeButtons();
 
 if(FIREBASE_CONFIGURED){
   initFirebaseAuth();
@@ -2659,4 +3099,8 @@ if(!HAS_CLAUDE_STORAGE && 'serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
+setInterval(() => {
+  if(loaded){ checkRoutineReset(); renderTodayRoutines(); renderRoutines(); }
+}, 60000);
 </script>
