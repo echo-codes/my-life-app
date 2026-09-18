@@ -514,6 +514,17 @@
     font-size:13px;
   }
 
+  .load-error-banner{
+    margin:14px 20px 0;
+    padding:12px 14px;
+    background:rgba(226,75,114,0.15);
+    border:1px solid var(--danger);
+    border-radius:6px;
+    color:var(--ink);
+    font-size:12.5px;
+    line-height:1.5;
+  }
+
   .signin-screen{
     display:none;
     flex-direction:column;
@@ -870,6 +881,9 @@
 
 <div id="app">
   <div class="loading" id="loading">Loading your sheet…</div>
+  <div class="load-error-banner" id="load-error-banner" style="display:none;">
+    ⚠️ Couldn't load your saved data (connection or permissions issue). To protect what's already saved, nothing you do right now will be saved until this is fixed — try reloading the page. If reloading doesn't help, use ⇧ Restore with a recent backup.
+  </div>
 
   <div class="signin-screen" id="signin-screen">
     <div class="signin-mark">ML</div>
@@ -1225,6 +1239,38 @@
     <div id="planning-list"></div>
   </div>
 
+  <!-- BILLS -->
+  <div class="view" id="view-bills">
+    <div class="view-title">Bills</div>
+    <div class="fab" onclick="openNewBillForm()"><span class="plus">+</span> Add bill</div>
+    <div class="add-form" id="form-bill">
+      <div class="form-heading" id="bill-form-heading">New bill</div>
+      <input type="hidden" id="bill-editing-id" value="">
+      <input type="text" id="bill-payee" placeholder="Payee">
+      <input type="number" id="bill-amount" placeholder="Amount" step="0.01" min="0">
+      <div class="form-row">
+        <div style="flex:1;">
+          <div class="field-label">Due date</div>
+          <input type="date" id="bill-due">
+        </div>
+        <div style="flex:1;">
+          <div class="field-label">Last paid</div>
+          <input type="date" id="bill-last-paid">
+        </div>
+      </div>
+      <select id="bill-type">
+        <option value="manual">Manual (remind me)</option>
+        <option value="automatic">Automatic (autopay)</option>
+      </select>
+      <div class="form-actions">
+        <button class="btn" id="bill-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromBillForm()">Delete</button>
+        <button class="btn" onclick="toggleForm('bill')">Cancel</button>
+        <button class="btn primary" id="bill-save-btn" onclick="saveBill()">Add bill</button>
+      </div>
+    </div>
+    <div id="bills-list"></div>
+  </div>
+
   <!-- ROUTINES -->
   <div class="view" id="view-routines">
     <div class="view-title">Routines</div>
@@ -1316,8 +1362,25 @@
       <input type="hidden" id="friend-editing-id" value="">
       <input type="text" id="friend-name" placeholder="Name">
       <div>
-        <div class="field-label">Birthday</div>
-        <input type="date" id="friend-birthday">
+        <div class="field-label">Birthday (month &amp; day)</div>
+        <div class="form-row">
+          <select id="friend-birth-month">
+            <option value="">Month</option>
+            <option value="01">January</option>
+            <option value="02">February</option>
+            <option value="03">March</option>
+            <option value="04">April</option>
+            <option value="05">May</option>
+            <option value="06">June</option>
+            <option value="07">July</option>
+            <option value="08">August</option>
+            <option value="09">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+          </select>
+          <input type="number" id="friend-birth-day" placeholder="Day" min="1" max="31">
+        </div>
       </div>
       <textarea id="friend-likes" placeholder="Likes"></textarea>
       <textarea id="friend-dislikes" placeholder="Dislikes"></textarea>
@@ -1342,6 +1405,7 @@
     <button data-view="habits" onclick="switchView('habits')"><span class="dot"></span>Habits</button>
     <button data-view="routines" onclick="switchView('routines')"><span class="dot"></span>Routines</button>
     <button data-view="meals" onclick="switchView('meals')"><span class="dot"></span>Meals</button>
+    <button data-view="bills" onclick="switchView('bills')"><span class="dot"></span>Bills</button>
     <button data-view="planning" onclick="switchView('planning')"><span class="dot"></span>Planning</button>
     <button data-view="journal" onclick="switchView('journal')"><span class="dot"></span>Journal</button>
   </nav>
@@ -1355,7 +1419,7 @@
 
 <script>
 const STORAGE_KEY = 'lifeapp-data';
-let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: { items: [], log: [] }, night: { items: [], log: [] }, lastReset: '' }, shoppingList: [], fridge: [], pets: [], plants: [], friends: [] };
+let data = { schedule: [], tasks: [], notes: [], habits: [], journal: [], meals: [], planning: [], routines: { morning: { items: [], log: [] }, night: { items: [], log: [] }, lastReset: '' }, shoppingList: [], fridge: [], pets: [], plants: [], friends: [], bills: [] };
 let loaded = false;
 let pickedMood = '🙂';
 let journalUnlocked = false;
@@ -1380,6 +1444,7 @@ function ensureShape(){
   data.pets = data.pets || [];
   data.plants = data.plants || [];
   data.friends = data.friends || [];
+  data.bills = data.bills || [];
 
   data.routines = data.routines || {};
   ['morning','night'].forEach(key => {
@@ -1509,12 +1574,12 @@ const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'f
 // (Project settings → General → Your apps → SDK setup and configuration).
 // Leaving the placeholders as-is just means the app uses local storage only.
 const firebaseConfig = {
-  apiKey: "AIzaSyCzQfby6i0ii3tboe5DU3YaLNaFwJWzH50",
-  authDomain: "my-life-app-84a4a.firebaseapp.com",
-  projectId: "my-life-app-84a4a",
-  storageBucket: "my-life-app-84a4a.firebasestorage.app",
-  messagingSenderId: "3492333176",
-  appId: "1:3492333176:web:1c44d6c7f9dce228888f8d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY" && !HAS_CLAUDE_STORAGE;
 
@@ -1550,7 +1615,10 @@ function initFirebaseAuth(){
   });
 }
 
+let dataLoadedSuccessfully = false;
+
 async function loadData(){
+  let readFailed = false;
   try{
     if(HAS_CLAUDE_STORAGE){
       const res = await window.storage.get(STORAGE_KEY, false);
@@ -1563,16 +1631,23 @@ async function loadData(){
       if(raw){ data = JSON.parse(raw); }
     }
   }catch(e){
-    // no existing data yet, start fresh
+    console.error('Could not load data', e);
+    readFailed = true;
   }
   ensureShape();
-  checkRoutineReset();
+  dataLoadedSuccessfully = !readFailed;
+  if(dataLoadedSuccessfully){ checkRoutineReset(); }
   loaded = true;
   document.getElementById('loading').style.display = 'none';
+  document.getElementById('load-error-banner').style.display = readFailed ? 'block' : 'none';
   renderAll();
 }
 
 async function saveData(){
+  if(!dataLoadedSuccessfully){
+    console.warn('Refusing to save: the initial load did not complete successfully, so saving now could overwrite real data with a blank slate.');
+    return;
+  }
   try{
     if(HAS_CLAUDE_STORAGE){
       await window.storage.set(STORAGE_KEY, JSON.stringify(data), false);
@@ -1670,6 +1745,8 @@ function importBackup(fileInput){
       if(!confirm('Restore this backup? It will replace everything currently in the app.')) { fileInput.value=''; return; }
       data = parsed;
       ensureShape();
+      dataLoadedSuccessfully = true;
+      document.getElementById('load-error-banner').style.display = 'none';
       saveData();
       renderAll();
       alert('Backup restored.');
@@ -2701,10 +2778,17 @@ function tomorrowISO(){
   return isoOf(d);
 }
 
+function monthDayLabel(mmdd){
+  if(!mmdd) return '';
+  const [m,d] = mmdd.split('-').map(Number);
+  return new Date(2000, m-1, d).toLocaleDateString(undefined, { month:'long', day:'numeric' });
+}
+
 function openNewFriendForm(){
   document.getElementById('friend-editing-id').value = '';
   document.getElementById('friend-name').value = '';
-  document.getElementById('friend-birthday').value = '';
+  document.getElementById('friend-birth-month').value = '';
+  document.getElementById('friend-birth-day').value = '';
   document.getElementById('friend-likes').value = '';
   document.getElementById('friend-dislikes').value = '';
   document.getElementById('friend-form-heading').textContent = 'New friend';
@@ -2719,7 +2803,14 @@ function editFriend(id){
   if(!f) return;
   document.getElementById('friend-editing-id').value = f.id;
   document.getElementById('friend-name').value = f.name || '';
-  document.getElementById('friend-birthday').value = f.birthday || '';
+  if(f.birthday){
+    const [m,d] = f.birthday.split('-');
+    document.getElementById('friend-birth-month').value = m;
+    document.getElementById('friend-birth-day').value = String(Number(d));
+  } else {
+    document.getElementById('friend-birth-month').value = '';
+    document.getElementById('friend-birth-day').value = '';
+  }
   document.getElementById('friend-likes').value = f.likes || '';
   document.getElementById('friend-dislikes').value = f.dislikes || '';
   document.getElementById('friend-form-heading').textContent = 'Edit friend';
@@ -2750,7 +2841,9 @@ function reachOutFriend(){
 function saveFriend(){
   const editingId = document.getElementById('friend-editing-id').value;
   const name = document.getElementById('friend-name').value.trim();
-  const birthday = document.getElementById('friend-birthday').value;
+  const month = document.getElementById('friend-birth-month').value;
+  const day = document.getElementById('friend-birth-day').value;
+  const birthday = (month && day) ? `${month}-${String(day).padStart(2,'0')}` : '';
   const likes = document.getElementById('friend-likes').value.trim();
   const dislikes = document.getElementById('friend-dislikes').value.trim();
   if(!name) return;
@@ -2771,8 +2864,106 @@ function renderFriends(){
   el.innerHTML = sorted.length ? sorted.map(f => `
     <div class="contact-card" onclick="editFriend('${f.id}')">
       <div class="contact-name">${escapeHtml(f.name)}</div>
-      ${f.birthday ? `<div class="contact-sub">Birthday: ${fmtDate(f.birthday)}</div>` : ''}
+      ${f.birthday ? `<div class="contact-sub">Birthday: ${monthDayLabel(f.birthday)}</div>` : ''}
     </div>`).join('') : '<div class="empty">No friends added yet.</div>';
+}
+
+/* ---- Bills ---- */
+function syncBillReminder(bill){
+  if(bill.type === 'manual'){
+    const title = `Pay ${bill.payee}`;
+    const notes = bill.amount ? `Amount: $${Number(bill.amount).toFixed(2)}` : '';
+    let ev = bill.reminderScheduleId ? data.schedule.find(s => s.id === bill.reminderScheduleId) : null;
+    if(ev){
+      Object.assign(ev, { date: bill.dueDate, title, notes, type: 'personal' });
+    } else {
+      const newEv = { id: uid(), date: bill.dueDate, time:'', endTime:'', title, employer:'', venue:'', notes, type:'personal' };
+      data.schedule.push(newEv);
+      bill.reminderScheduleId = newEv.id;
+    }
+    data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  } else if(bill.reminderScheduleId){
+    data.schedule = data.schedule.filter(s => s.id !== bill.reminderScheduleId);
+    bill.reminderScheduleId = '';
+  }
+}
+
+function openNewBillForm(){
+  document.getElementById('bill-editing-id').value = '';
+  document.getElementById('bill-payee').value = '';
+  document.getElementById('bill-amount').value = '';
+  document.getElementById('bill-due').value = '';
+  document.getElementById('bill-last-paid').value = '';
+  document.getElementById('bill-type').value = 'manual';
+  document.getElementById('bill-form-heading').textContent = 'New bill';
+  document.getElementById('bill-save-btn').textContent = 'Add bill';
+  document.getElementById('bill-delete-btn').style.display = 'none';
+  document.getElementById('form-bill').classList.add('open');
+}
+
+function editBill(id){
+  const b = data.bills.find(x => x.id === id);
+  if(!b) return;
+  document.getElementById('bill-editing-id').value = b.id;
+  document.getElementById('bill-payee').value = b.payee || '';
+  document.getElementById('bill-amount').value = b.amount || '';
+  document.getElementById('bill-due').value = b.dueDate || '';
+  document.getElementById('bill-last-paid').value = b.lastPaid || '';
+  document.getElementById('bill-type').value = b.type || 'manual';
+  document.getElementById('bill-form-heading').textContent = 'Edit bill';
+  document.getElementById('bill-save-btn').textContent = 'Save changes';
+  document.getElementById('bill-delete-btn').style.display = 'inline-block';
+  document.getElementById('form-bill').classList.add('open');
+}
+
+function deleteFromBillForm(){
+  const editingId = document.getElementById('bill-editing-id').value;
+  if(editingId) deleteBillDirect(editingId);
+  toggleForm('bill');
+}
+
+function deleteBillDirect(id){
+  const b = data.bills.find(x => x.id === id);
+  if(b && b.reminderScheduleId){ data.schedule = data.schedule.filter(s => s.id !== b.reminderScheduleId); }
+  data.bills = data.bills.filter(x => x.id !== id);
+  saveData();
+  renderAll();
+}
+
+function saveBill(){
+  const editingId = document.getElementById('bill-editing-id').value;
+  const payee = document.getElementById('bill-payee').value.trim();
+  const amount = document.getElementById('bill-amount').value;
+  const dueDate = document.getElementById('bill-due').value;
+  const lastPaid = document.getElementById('bill-last-paid').value;
+  const type = document.getElementById('bill-type').value;
+  if(!payee || !dueDate) return;
+  let bill;
+  if(editingId){
+    bill = data.bills.find(x => x.id === editingId);
+    if(bill) Object.assign(bill, { payee, amount, dueDate, lastPaid, type });
+  } else {
+    bill = { id: uid(), payee, amount, dueDate, lastPaid, type, reminderScheduleId: '' };
+    data.bills.push(bill);
+  }
+  if(bill) syncBillReminder(bill);
+  saveData();
+  toggleForm('bill');
+  renderAll();
+}
+
+function renderBills(){
+  const el = document.getElementById('bills-list');
+  const sorted = [...data.bills].sort((a,b) => (a.dueDate||'9999').localeCompare(b.dueDate||'9999'));
+  el.innerHTML = sorted.length ? sorted.map(b => `
+    <div class="row" style="cursor:pointer;" onclick="editBill('${b.id}')">
+      <div class="body">
+        <div class="title">${escapeHtml(b.payee)}${b.amount ? ' — $' + Number(b.amount).toFixed(2) : ''}</div>
+        <div class="sub">Due ${fmtDate(b.dueDate)} (${b.type === 'automatic' ? 'Automatic' : 'Manual'})</div>
+        ${b.lastPaid ? `<div class="sub">Last paid ${fmtDate(b.lastPaid)}</div>` : ''}
+      </div>
+      <div class="del" onclick="event.stopPropagation(); deleteBillDirect('${b.id}')">✕</div>
+    </div>`).join('') : '<div class="empty">No bills tracked yet.</div>';
 }
 
 function openNewPlanForm(){
@@ -3078,6 +3269,7 @@ function renderAll(){
   renderPets();
   renderPlants();
   renderFriends();
+  renderBills();
 }
 
 function escapeHtml(str){
