@@ -1,6 +1,6 @@
 // Basic offline cache for My Life.
 // Bump CACHE_NAME any time you replace index.html so the new version loads.
-const CACHE_NAME = 'my-life-v1';
+const CACHE_NAME = 'my-life-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -26,6 +26,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only cache simple GETs for our own site — Firestore/Auth traffic (POSTs,
+  // cross-origin requests) should just pass straight through untouched.
+  if(event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin){
+    return;
+  }
   // Network-first for the app shell so you get updates when online;
   // falls back to cache when offline.
   event.respondWith(
