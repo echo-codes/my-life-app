@@ -1012,7 +1012,19 @@
       <button class="mode-tab" data-mode="month" onclick="switchScheduleMode('month')">Month</button>
     </div>
 
-    <div id="schedule-list" class="sched-mode active"></div>
+    <div id="schedule-list" class="sched-mode active">
+      <div id="schedule-upcoming-list"></div>
+      <div class="journal-month" style="margin-top:10px;">
+        <div class="journal-month-head" id="schedule-archive-head" onclick="toggleScheduleArchive()">
+          <span>Archived events</span>
+          <span class="journal-month-count" id="schedule-archive-count"></span>
+          <span class="chevron">›</span>
+        </div>
+        <div class="journal-month-body" id="schedule-archive-body">
+          <div id="schedule-archive-list"></div>
+        </div>
+      </div>
+    </div>
 
     <div id="schedule-day" class="sched-mode">
       <div class="range-nav">
@@ -1574,12 +1586,12 @@ const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'f
 // (Project settings → General → Your apps → SDK setup and configuration).
 // Leaving the placeholders as-is just means the app uses local storage only.
 const firebaseConfig = {
-  apiKey: "AIzaSyCzQfby6i0ii3tboe5DU3YaLNaFwJWzH50",
-  authDomain: "my-life-app-84a4a.firebaseapp.com",
-  projectId: "my-life-app-84a4a",
-  storageBucket: "my-life-app-84a4a.firebasestorage.app",
-  messagingSenderId: "3492333176",
-  appId: "1:3492333176:web:1c44d6c7f9dce228888f8d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY" && !HAS_CLAUDE_STORAGE;
 
@@ -2400,6 +2412,11 @@ function toggleJournalMonth(key){
   renderJournal();
 }
 
+function toggleScheduleArchive(){
+  document.getElementById('schedule-archive-head').classList.toggle('expanded');
+  document.getElementById('schedule-archive-body').classList.toggle('expanded');
+}
+
 function renderJournal(){
   const el = document.getElementById('journal-list');
   if(!data.journal.length){ el.innerHTML = '<div class="empty">Nothing written yet.</div>'; return; }
@@ -3207,10 +3224,15 @@ function renderAll(){
     noteEl.innerHTML = '<div class="empty">No notes yet.</div>';
   }
 
-  // Full schedule
-  const schedEl = document.getElementById('schedule-list');
-  const upcoming = [...data.schedule].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
-  schedEl.innerHTML = upcoming.length ? upcoming.map(s => `
+  // Full schedule (split into current/upcoming vs archived-past)
+  const upcomingEl = document.getElementById('schedule-upcoming-list');
+  const archiveEl = document.getElementById('schedule-archive-list');
+  const archiveCountEl = document.getElementById('schedule-archive-count');
+  const allSorted = [...data.schedule].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  const currentEvents = allSorted.filter(s => s.date >= today);
+  const archivedEvents = allSorted.filter(s => s.date < today).reverse();
+
+  const eventBlockHtml = (s) => `
     <div class="event-block type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><div class="row">
       <div class="time mono">${fmtDate(s.date)}<br>${s.time ? timeRange(s) : ''}</div>
       <div class="body">
@@ -3220,7 +3242,11 @@ function renderAll(){
         ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
       </div>
       <div class="del" onclick="event.stopPropagation(); deleteSchedule('${s.id}')">✕</div>
-    </div></div>`).join('') : '<div class="empty">Nothing on the schedule. Add a call or personal event above.</div>';
+    </div></div>`;
+
+  upcomingEl.innerHTML = currentEvents.length ? currentEvents.map(eventBlockHtml).join('') : '<div class="empty">Nothing on the schedule. Add a call or personal event above.</div>';
+  archiveCountEl.textContent = archivedEvents.length;
+  archiveEl.innerHTML = archivedEvents.length ? archivedEvents.map(eventBlockHtml).join('') : '<div class="empty">Nothing archived yet.</div>';
 
   if(scheduleMode === 'day') renderDayView();
   if(scheduleMode === 'week') renderWeek();
