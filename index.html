@@ -673,6 +673,10 @@
     color:var(--amber);
     font-weight:700;
   }
+  .habit-month-count{
+    font-size:11px;
+    color:var(--ink-dim);
+  }
   .habit-week{ display:flex; gap:8px; }
   .habit-day{
     flex:1;
@@ -778,6 +782,7 @@
     border-bottom:1px dashed var(--rule);
   }
   .plan-row:last-child{ border-bottom:none; }
+  .notes-flag{ color:var(--ink-dim); font-size:12px; }
 
   /* Routines (Personal tab) */
   .routine-block{ margin-bottom:28px; }
@@ -1270,10 +1275,16 @@
           <input type="date" id="bill-last-paid">
         </div>
       </div>
-      <select id="bill-type">
-        <option value="manual">Manual (remind me)</option>
-        <option value="automatic">Automatic (autopay)</option>
-      </select>
+      <div class="form-row">
+        <select id="bill-frequency">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        <select id="bill-type">
+          <option value="manual">Manual (remind me)</option>
+          <option value="automatic">Automatic (autopay)</option>
+        </select>
+      </div>
       <div class="form-actions">
         <button class="btn" id="bill-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromBillForm()">Delete</button>
         <button class="btn" onclick="toggleForm('bill')">Cancel</button>
@@ -2316,6 +2327,16 @@ function habitStreak(h){
   return count;
 }
 
+function currentMonthKey(){
+  const now = new Date();
+  return now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+}
+
+function monthCountFromDates(dates){
+  const ym = currentMonthKey();
+  return dates.filter(d => d.startsWith(ym)).length;
+}
+
 function renderHabits(){
   const el = document.getElementById('habits-list');
   const today = todayISO();
@@ -2325,11 +2346,13 @@ function renderHabits(){
 
   el.innerHTML = data.habits.length ? data.habits.map(h => {
     const streak = habitStreak(h);
+    const monthCount = monthCountFromDates(h.doneDates);
     return `<div class="habit-row">
       <div class="habit-top">
         <div class="habit-name" style="cursor:pointer;" onclick="editHabit('${h.id}')">${escapeHtml(h.name)}</div>
         <div style="display:flex;align-items:center;gap:10px;">
           ${streak > 0 ? `<span class="habit-streak">🔥 ${streak}</span>` : ''}
+          <span class="habit-month-count">${monthCount} this month</span>
           <span class="del" onclick="deleteHabit('${h.id}')">✕</span>
         </div>
       </div>
@@ -2914,6 +2937,7 @@ function openNewBillForm(){
   document.getElementById('bill-amount').value = '';
   document.getElementById('bill-due').value = '';
   document.getElementById('bill-last-paid').value = '';
+  document.getElementById('bill-frequency').value = 'monthly';
   document.getElementById('bill-type').value = 'manual';
   document.getElementById('bill-form-heading').textContent = 'New bill';
   document.getElementById('bill-save-btn').textContent = 'Add bill';
@@ -2929,6 +2953,7 @@ function editBill(id){
   document.getElementById('bill-amount').value = b.amount || '';
   document.getElementById('bill-due').value = b.dueDate || '';
   document.getElementById('bill-last-paid').value = b.lastPaid || '';
+  document.getElementById('bill-frequency').value = b.frequency || 'monthly';
   document.getElementById('bill-type').value = b.type || 'manual';
   document.getElementById('bill-form-heading').textContent = 'Edit bill';
   document.getElementById('bill-save-btn').textContent = 'Save changes';
@@ -2956,14 +2981,15 @@ function saveBill(){
   const amount = document.getElementById('bill-amount').value;
   const dueDate = document.getElementById('bill-due').value;
   const lastPaid = document.getElementById('bill-last-paid').value;
+  const frequency = document.getElementById('bill-frequency').value;
   const type = document.getElementById('bill-type').value;
   if(!payee || !dueDate) return;
   let bill;
   if(editingId){
     bill = data.bills.find(x => x.id === editingId);
-    if(bill) Object.assign(bill, { payee, amount, dueDate, lastPaid, type });
+    if(bill) Object.assign(bill, { payee, amount, dueDate, lastPaid, frequency, type });
   } else {
-    bill = { id: uid(), payee, amount, dueDate, lastPaid, type, reminderScheduleId: '' };
+    bill = { id: uid(), payee, amount, dueDate, lastPaid, frequency, type, reminderScheduleId: '' };
     data.bills.push(bill);
   }
   if(bill) syncBillReminder(bill);
@@ -2972,14 +2998,28 @@ function saveBill(){
   renderAll();
 }
 
+function markBillPaid(id){
+  const b = data.bills.find(x => x.id === id);
+  if(!b) return;
+  const paidDate = b.dueDate;
+  const d = new Date(b.dueDate + 'T00:00:00');
+  if(b.frequency === 'yearly'){ d.setFullYear(d.getFullYear() + 1); } else { d.setMonth(d.getMonth() + 1); }
+  b.lastPaid = paidDate;
+  b.dueDate = isoOf(d);
+  syncBillReminder(b);
+  saveData();
+  renderAll();
+}
+
 function renderBills(){
   const el = document.getElementById('bills-list');
   const sorted = [...data.bills].sort((a,b) => (a.dueDate||'9999').localeCompare(b.dueDate||'9999'));
   el.innerHTML = sorted.length ? sorted.map(b => `
-    <div class="row" style="cursor:pointer;" onclick="editBill('${b.id}')">
-      <div class="body">
+    <div class="row">
+      <div class="checkbox" title="Mark this bill paid and roll to the next due date" onclick="markBillPaid('${b.id}')"></div>
+      <div class="body" style="cursor:pointer;" onclick="editBill('${b.id}')">
         <div class="title">${escapeHtml(b.payee)}${b.amount ? ' — $' + Number(b.amount).toFixed(2) : ''}</div>
-        <div class="sub">Due ${fmtDate(b.dueDate)} (${b.type === 'automatic' ? 'Automatic' : 'Manual'})</div>
+        <div class="sub">Due ${fmtDate(b.dueDate)} (${b.frequency === 'yearly' ? 'Yearly' : 'Monthly'}, ${b.type === 'automatic' ? 'Automatic' : 'Manual'})</div>
         ${b.lastPaid ? `<div class="sub">Last paid ${fmtDate(b.lastPaid)}</div>` : ''}
       </div>
       <div class="del" onclick="event.stopPropagation(); deleteBillDirect('${b.id}')">✕</div>
@@ -3038,7 +3078,7 @@ function renderPlanning(){
   el.innerHTML = data.planning.length ? data.planning.map(p => `
     <div class="plan-row">
       <div class="checkbox ${p.done?'checked':''}" onclick="togglePlan('${p.id}')"></div>
-      <div class="body" style="cursor:pointer;" onclick="editPlan('${p.id}')"><div class="title task-text ${p.done?'done':''}">${escapeHtml(p.text)}</div></div>
+      <div class="body" style="cursor:pointer;" onclick="editPlan('${p.id}')"><div class="title task-text ${p.done?'done':''}">${escapeHtml(p.text)}${p.notes ? ' <span class="notes-flag" title="Has notes">✎</span>' : ''}</div></div>
       <div class="del" onclick="deletePlan('${p.id}')">✕</div>
     </div>`).join('') : '<div class="empty">The list is wide open. Add whatever\'s on your mind.</div>';
 }
@@ -3116,8 +3156,13 @@ function renderRoutineProgress(key, elId){
   const weekDays = [];
   for(let i=0;i<7;i++){ const d = new Date(weekStart); d.setDate(d.getDate()+i); weekDays.push(d); }
   const todayDone = r.items.length && r.items.every(i => i.done);
+  let monthCount = monthCountFromDates(r.log);
+  if(todayDone && today.startsWith(currentMonthKey()) && !r.log.includes(today)) monthCount++;
   el.innerHTML = `
-    ${streak > 0 ? `<span class="habit-streak">🔥 ${streak}</span>` : ''}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      ${streak > 0 ? `<span class="habit-streak">🔥 ${streak}</span>` : ''}
+      <span class="habit-month-count">${monthCount} this month</span>
+    </div>
     <div class="habit-week">
       ${weekDays.map(d => {
         const iso = isoOf(d);
