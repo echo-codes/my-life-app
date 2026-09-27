@@ -655,6 +655,16 @@
   .contact-name{ font-weight:600; font-size:15px; }
   .contact-sub{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
 
+  /* Friend contact cards: alternating color blocks */
+  .contact-card.friend-card{
+    padding:12px 14px;
+    margin-bottom:8px;
+    border-radius:10px;
+    border-bottom:none;
+  }
+  .contact-card.friend-card:nth-child(odd){ background:rgba(124,154,76,0.12); }
+  .contact-card.friend-card:nth-child(even){ background:rgba(194,121,61,0.12); }
+
   /* Habits */
   .habit-row{
     padding:14px 0;
@@ -841,6 +851,42 @@
   .routine-today-body.expanded{ display:block; }
   .routine-progress-row{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
 
+  /* Pets: Today quick-log row */
+  .pet-quick-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  .pet-quick-row:last-child{ border-bottom:none; }
+  .pet-quick-name{ font-size:14px; font-weight:500; }
+  .pet-quick-actions{ display:flex; gap:8px; }
+  .pet-quick-btn{
+    font-family:inherit;
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:14px;
+    border:1px solid var(--rule);
+    background:var(--bg);
+    color:var(--ink-dim);
+    cursor:pointer;
+  }
+
+  /* Pets: archive log */
+  .pet-log-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+    padding:8px 0;
+    border-bottom:1px dashed var(--rule);
+    font-size:13px;
+  }
+  .pet-log-row:last-child{ border-bottom:none; }
+  .pet-log-type{ font-weight:600; }
+  .pet-log-notes{ color:var(--ink-dim); font-size:12px; margin-top:2px; }
+
   /* Journal lock */
   #journal-lock{
     text-align:center;
@@ -933,6 +979,25 @@
     <div class="section">
       <div class="section-label"><span>Meals planned</span></div>
       <div id="today-meals"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label"><span>Pets</span></div>
+      <div id="today-pets"></div>
+      <div class="add-form" id="form-petlog">
+        <div class="form-heading" id="petlog-form-heading">Log entry</div>
+        <input type="hidden" id="petlog-pet-id" value="">
+        <input type="hidden" id="petlog-type" value="">
+        <div class="form-row">
+          <input type="date" id="petlog-date">
+          <input type="time" id="petlog-time">
+        </div>
+        <textarea id="petlog-notes" placeholder="Notes (optional)"></textarea>
+        <div class="form-actions">
+          <button class="btn" onclick="toggleForm('petlog')">Cancel</button>
+          <button class="btn primary" onclick="savePetLog()">Save</button>
+        </div>
+      </div>
     </div>
 
     <div class="section">
@@ -1343,8 +1408,6 @@
       <div class="form-heading" id="pet-form-heading">New pet</div>
       <input type="hidden" id="pet-editing-id" value="">
       <input type="text" id="pet-name" placeholder="Pet's name">
-      <input type="text" id="pet-feeding" placeholder="Feeding times (e.g. 7am, 6pm)">
-      <input type="text" id="pet-walks" placeholder="Walk times">
       <textarea id="pet-diet" placeholder="Diet notes / allergies"></textarea>
       <textarea id="pet-training" placeholder="Training notes"></textarea>
       <div class="form-actions">
@@ -1365,7 +1428,17 @@
       <input type="hidden" id="plant-editing-id" value="">
       <input type="text" id="plant-name" placeholder="What do you call it">
       <input type="text" id="plant-species" placeholder="Species (optional)">
-      <input type="text" id="plant-watering" placeholder="Watering schedule (e.g. every Sunday)">
+      <select id="plant-watering">
+        <option value="1">Every day</option>
+        <option value="3">Every 3 days</option>
+        <option value="7">Every week</option>
+        <option value="14">Every 2 weeks</option>
+        <option value="30">Every month</option>
+      </select>
+      <div>
+        <div class="field-label">Last watered</div>
+        <input type="date" id="plant-last-watered">
+      </div>
       <textarea id="plant-sun" placeholder="Sun needs / notes"></textarea>
       <div class="form-actions">
         <button class="btn" id="plant-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromPlantForm()">Delete</button>
@@ -1465,6 +1538,7 @@ function ensureShape(){
   data.shoppingList = data.shoppingList || [];
   data.fridge = data.fridge || [];
   data.pets = data.pets || [];
+  data.pets.forEach(p => { p.logs = p.logs || []; });
   data.plants = data.plants || [];
   data.friends = data.friends || [];
   data.bills = data.bills || [];
@@ -1590,6 +1664,65 @@ function resetJournalPin(){
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
+// ---- Merge-safe saving ----
+// Every save merges with whatever's currently remote instead of blindly
+// overwriting, so a second open tab/device that hasn't seen your latest
+// edits yet can't wipe them out. `deletedIds` tracks anything removed this
+// session so a remote copy that still has it doesn't get resurrected.
+let deletedIds = new Set();
+
+function markDeleted(id){ if(id) deletedIds.add(id); }
+
+function removeById(arr, id){
+  markDeleted(id);
+  return (arr || []).filter(x => x.id !== id);
+}
+
+function mergeArraysById(remoteArr, localArr){
+  remoteArr = remoteArr || [];
+  localArr = localArr || [];
+  const map = new Map();
+  remoteArr.forEach(item => { if(item && item.id && !deletedIds.has(item.id)) map.set(item.id, item); });
+  localArr.forEach(item => { if(item && item.id && !deletedIds.has(item.id)) map.set(item.id, item); });
+  return Array.from(map.values());
+}
+
+function mergeStringArray(remoteArr, localArr){
+  return Array.from(new Set([...(remoteArr||[]), ...(localArr||[])]));
+}
+
+function mergeRoutine(remoteR, localR){
+  return {
+    items: mergeArraysById(remoteR && remoteR.items, localR && localR.items),
+    log: mergeStringArray(remoteR && remoteR.log, localR && localR.log)
+  };
+}
+
+function mergeDataForSave(remote, local){
+  if(!remote) return local;
+  const merged = { ...local };
+  ['schedule','tasks','notes','habits','journal','meals','planning','shoppingList','fridge','pets','plants','friends','bills'].forEach(key => {
+    merged[key] = mergeArraysById(remote[key], local[key]);
+  });
+  // Pets carry a nested logs array; merge those per-pet too so a walk/meal
+  // logged on one device doesn't get lost if another device saves first.
+  merged.pets = merged.pets.map(pet => {
+    const remotePet = (remote.pets || []).find(rp => rp.id === pet.id);
+    const localPet = (local.pets || []).find(lp => lp.id === pet.id);
+    pet.logs = mergeArraysById(remotePet && remotePet.logs, localPet && localPet.logs);
+    return pet;
+  });
+  const remoteRoutines = remote.routines || {};
+  const localRoutines = local.routines || {};
+  merged.routines = {
+    morning: mergeRoutine(remoteRoutines.morning, localRoutines.morning),
+    night: mergeRoutine(remoteRoutines.night, localRoutines.night),
+    lastReset: (remoteRoutines.lastReset || '') > (localRoutines.lastReset || '') ? remoteRoutines.lastReset : localRoutines.lastReset
+  };
+  if(!merged.journalPin && remote.journalPin){ merged.journalPin = remote.journalPin; }
+  return merged;
+}
+
 const HAS_CLAUDE_STORAGE = !!(window.storage && typeof window.storage.get === 'function');
 
 // ---- Firebase config ----
@@ -1678,7 +1811,21 @@ async function saveData(){
     if(HAS_CLAUDE_STORAGE){
       await window.storage.set(STORAGE_KEY, JSON.stringify(data), false);
     } else if(FIREBASE_CONFIGURED && fbUser){
+      // Merge-safe write: pull the current remote state first so a change
+      // made in another tab/device since our last load doesn't get wiped
+      // out by this one writing its own, possibly-stale, full picture.
+      let remote = null;
+      try{
+        const doc = await fbDb.collection('lifeapp').doc(fbUser.uid).get({ source: 'server' });
+        if(doc.exists && doc.data().payload){ remote = JSON.parse(doc.data().payload); }
+      }catch(e){
+        console.warn('Could not fetch remote state before saving; saving local data as-is.', e);
+      }
+      if(remote){
+        data = mergeDataForSave(remote, data);
+      }
       await fbDb.collection('lifeapp').doc(fbUser.uid).set({ payload: JSON.stringify(data), updatedAt: Date.now() });
+      renderAll();
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -1751,6 +1898,7 @@ function clearOldEvents(){
   const oldCount = data.schedule.filter(s => s.date < cutoffIso).length;
   if(!oldCount){ alert('Nothing older than 3 months to clear.'); return; }
   if(!confirm(`Delete ${oldCount} event${oldCount===1?'':'s'} from more than 3 months ago? This can't be undone.`)) return;
+  data.schedule.filter(s => s.date < cutoffIso).forEach(s => markDeleted(s.id));
   data.schedule = data.schedule.filter(s => s.date >= cutoffIso);
   saveData();
   renderAll();
@@ -2104,7 +2252,7 @@ function duplicateSchedule(){
 function deleteFromScheduleForm(){
   const editingId = document.getElementById('sched-editing-id').value;
   if(editingId){
-    data.schedule = data.schedule.filter(s => s.id !== editingId);
+    data.schedule = removeById(data.schedule, editingId);
     saveData();
   }
   closeScheduleForm();
@@ -2158,7 +2306,7 @@ function saveSchedule(){
 }
 
 function deleteSchedule(id){
-  data.schedule = data.schedule.filter(s => s.id !== id);
+  data.schedule = removeById(data.schedule, id);
   saveData();
   renderAll();
 }
@@ -2216,7 +2364,7 @@ function toggleTask(id){
 }
 
 function deleteTask(id){
-  data.tasks = data.tasks.filter(t => t.id !== id);
+  data.tasks = removeById(data.tasks, id);
   saveData();
   renderAll();
 }
@@ -2263,7 +2411,7 @@ function saveNote(){
 }
 
 function deleteNote(id){
-  data.notes = data.notes.filter(n => n.id !== id);
+  data.notes = removeById(data.notes, id);
   saveData();
   renderAll();
 }
@@ -2311,7 +2459,7 @@ function toggleHabitDay(habitId, iso){
 }
 
 function deleteHabit(id){
-  data.habits = data.habits.filter(h => h.id !== id);
+  data.habits = removeById(data.habits, id);
   saveData();
   renderAll();
 }
@@ -2416,7 +2564,7 @@ function saveJournal(){
 }
 
 function deleteJournal(id){
-  data.journal = data.journal.filter(j => j.id !== id);
+  data.journal = removeById(data.journal, id);
   saveData();
   renderAll();
 }
@@ -2525,7 +2673,7 @@ function saveMeal(){
 }
 
 function deleteMeal(id){
-  data.meals = data.meals.filter(m => m.id !== id);
+  data.meals = removeById(data.meals, id);
   saveData();
   renderAll();
 }
@@ -2589,7 +2737,7 @@ function toggleShoppingItem(id){
 }
 
 function deleteShoppingItem(id){
-  data.shoppingList = data.shoppingList.filter(x => x.id !== id);
+  data.shoppingList = removeById(data.shoppingList, id);
   saveData();
   renderAll();
 }
@@ -2597,6 +2745,7 @@ function deleteShoppingItem(id){
 function clearCheckedShopping(){
   const checkedCount = data.shoppingList.filter(x => x.done).length;
   if(!checkedCount) return;
+  data.shoppingList.filter(x => x.done).forEach(x => markDeleted(x.id));
   data.shoppingList = data.shoppingList.filter(x => !x.done);
   saveData();
   renderAll();
@@ -2662,7 +2811,7 @@ function saveFridgeItem(){
 }
 
 function deleteFridgeItem(id){
-  data.fridge = data.fridge.filter(x => x.id !== id);
+  data.fridge = removeById(data.fridge, id);
   saveData();
   renderAll();
 }
@@ -2685,11 +2834,11 @@ function renderFridge(){
 }
 
 /* ---- Pets ---- */
+let petArchiveExpanded = {};
+
 function openNewPetForm(){
   document.getElementById('pet-editing-id').value = '';
   document.getElementById('pet-name').value = '';
-  document.getElementById('pet-feeding').value = '';
-  document.getElementById('pet-walks').value = '';
   document.getElementById('pet-diet').value = '';
   document.getElementById('pet-training').value = '';
   document.getElementById('pet-form-heading').textContent = 'New pet';
@@ -2703,8 +2852,6 @@ function editPet(id){
   if(!p) return;
   document.getElementById('pet-editing-id').value = p.id;
   document.getElementById('pet-name').value = p.name || '';
-  document.getElementById('pet-feeding').value = p.feeding || '';
-  document.getElementById('pet-walks').value = p.walks || '';
   document.getElementById('pet-diet').value = p.dietNotes || '';
   document.getElementById('pet-training').value = p.trainingNotes || '';
   document.getElementById('pet-form-heading').textContent = 'Edit pet';
@@ -2715,7 +2862,7 @@ function editPet(id){
 
 function deleteFromPetForm(){
   const editingId = document.getElementById('pet-editing-id').value;
-  if(editingId){ data.pets = data.pets.filter(x => x.id !== editingId); saveData(); }
+  if(editingId){ data.pets = removeById(data.pets, editingId); saveData(); }
   toggleForm('pet');
   renderAll();
 }
@@ -2723,40 +2870,118 @@ function deleteFromPetForm(){
 function savePet(){
   const editingId = document.getElementById('pet-editing-id').value;
   const name = document.getElementById('pet-name').value.trim();
-  const feeding = document.getElementById('pet-feeding').value.trim();
-  const walks = document.getElementById('pet-walks').value.trim();
   const dietNotes = document.getElementById('pet-diet').value.trim();
   const trainingNotes = document.getElementById('pet-training').value.trim();
   if(!name) return;
   if(editingId){
     const p = data.pets.find(x => x.id === editingId);
-    if(p) Object.assign(p, { name, feeding, walks, dietNotes, trainingNotes });
+    if(p) Object.assign(p, { name, dietNotes, trainingNotes });
   } else {
-    data.pets.push({ id: uid(), name, feeding, walks, dietNotes, trainingNotes });
+    data.pets.push({ id: uid(), name, dietNotes, trainingNotes, logs: [] });
   }
   saveData();
   toggleForm('pet');
   renderAll();
 }
 
-function renderPets(){
-  const el = document.getElementById('pets-list');
+function openPetLogForm(petId, type){
+  document.getElementById('petlog-pet-id').value = petId;
+  document.getElementById('petlog-type').value = type;
+  const pet = data.pets.find(p => p.id === petId);
+  document.getElementById('petlog-form-heading').textContent = `Log a ${type} — ${pet ? pet.name : ''}`;
+  document.getElementById('petlog-date').value = todayISO();
+  const now = new Date();
+  document.getElementById('petlog-time').value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('petlog-notes').value = '';
+  document.getElementById('form-petlog').classList.add('open');
+}
+
+function savePetLog(){
+  const petId = document.getElementById('petlog-pet-id').value;
+  const type = document.getElementById('petlog-type').value;
+  const date = document.getElementById('petlog-date').value;
+  const time = document.getElementById('petlog-time').value;
+  const notes = document.getElementById('petlog-notes').value.trim();
+  const pet = data.pets.find(p => p.id === petId);
+  if(!pet || !date) return;
+  pet.logs = pet.logs || [];
+  pet.logs.push({ id: uid(), type, date, time, notes });
+  saveData();
+  toggleForm('petlog');
+  renderAll();
+}
+
+function deletePetLog(petId, logId){
+  const pet = data.pets.find(p => p.id === petId);
+  if(!pet) return;
+  pet.logs = removeById(pet.logs, logId);
+  saveData();
+  renderAll();
+}
+
+function togglePetArchive(petId){
+  petArchiveExpanded[petId] = !petArchiveExpanded[petId];
+  renderPets();
+}
+
+function lastLogOfType(pet, type){
+  const matches = (pet.logs || []).filter(l => l.type === type).sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
+  return matches[0] || null;
+}
+
+function renderTodayPets(){
+  const el = document.getElementById('today-pets');
   el.innerHTML = data.pets.length ? data.pets.map(p => `
-    <div class="contact-card" onclick="editPet('${p.id}')">
-      <div class="contact-name">${escapeHtml(p.name)}</div>
-      ${p.feeding ? `<div class="contact-sub">Feeding: ${escapeHtml(p.feeding)}</div>` : ''}
-      ${p.walks ? `<div class="contact-sub">Walks: ${escapeHtml(p.walks)}</div>` : ''}
-      ${p.dietNotes ? `<div class="contact-sub">Diet: ${escapeHtml(p.dietNotes)}</div>` : ''}
-      ${p.trainingNotes ? `<div class="contact-sub">Training: ${escapeHtml(p.trainingNotes)}</div>` : ''}
+    <div class="pet-quick-row">
+      <span class="pet-quick-name">${escapeHtml(p.name)}</span>
+      <span class="pet-quick-actions">
+        <button class="pet-quick-btn" onclick="openPetLogForm('${p.id}','walk')">🚶 Walk</button>
+        <button class="pet-quick-btn" onclick="openPetLogForm('${p.id}','meal')">🍖 Meal</button>
+      </span>
     </div>`).join('') : '<div class="empty">No pets added yet.</div>';
 }
 
+function renderPets(){
+  const el = document.getElementById('pets-list');
+  el.innerHTML = data.pets.length ? data.pets.map(p => {
+    const lastWalk = lastLogOfType(p, 'walk');
+    const lastMeal = lastLogOfType(p, 'meal');
+    const expanded = !!petArchiveExpanded[p.id];
+    const sortedLogs = [...(p.logs || [])].sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
+    return `<div class="contact-card" style="cursor:default;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="cursor:pointer;flex:1;" onclick="editPet('${p.id}')">
+          <div class="contact-name">${escapeHtml(p.name)}</div>
+          ${lastWalk ? `<div class="contact-sub">Last walk: ${fmtDate(lastWalk.date)} ${lastWalk.time || ''}</div>` : ''}
+          ${lastMeal ? `<div class="contact-sub">Last meal: ${fmtDate(lastMeal.date)} ${lastMeal.time || ''}</div>` : ''}
+          ${p.dietNotes ? `<div class="contact-sub">Diet: ${escapeHtml(p.dietNotes)}</div>` : ''}
+          ${p.trainingNotes ? `<div class="contact-sub">Training: ${escapeHtml(p.trainingNotes)}</div>` : ''}
+        </div>
+        <span class="routine-reset" style="white-space:nowrap;" onclick="togglePetArchive('${p.id}')">${expanded ? 'Hide' : 'Archive'}</span>
+      </div>
+      ${expanded ? `<div style="margin-top:10px;">
+        ${sortedLogs.length ? sortedLogs.map(l => `
+          <div class="pet-log-row">
+            <div>
+              <div class="pet-log-type">${l.type === 'walk' ? '🚶 Walk' : '🍖 Meal'} — ${fmtDate(l.date)} ${l.time || ''}</div>
+              ${l.notes ? `<div class="pet-log-notes">${escapeHtml(l.notes)}</div>` : ''}
+            </div>
+            <div class="del" onclick="deletePetLog('${p.id}','${l.id}')">✕</div>
+          </div>`).join('') : '<div class="empty">No logged walks or meals yet.</div>'}
+      </div>` : ''}
+    </div>`;
+  }).join('') : '<div class="empty">No pets added yet.</div>';
+}
+
 /* ---- Plants ---- */
+const WATERING_LABELS = { '1':'Every day', '3':'Every 3 days', '7':'Every week', '14':'Every 2 weeks', '30':'Every month' };
+
 function openNewPlantForm(){
   document.getElementById('plant-editing-id').value = '';
   document.getElementById('plant-name').value = '';
   document.getElementById('plant-species').value = '';
-  document.getElementById('plant-watering').value = '';
+  document.getElementById('plant-watering').value = '7';
+  document.getElementById('plant-last-watered').value = '';
   document.getElementById('plant-sun').value = '';
   document.getElementById('plant-form-heading').textContent = 'New plant';
   document.getElementById('plant-save-btn').textContent = 'Add plant';
@@ -2770,7 +2995,8 @@ function editPlant(id){
   document.getElementById('plant-editing-id').value = p.id;
   document.getElementById('plant-name').value = p.name || '';
   document.getElementById('plant-species').value = p.species || '';
-  document.getElementById('plant-watering').value = p.watering || '';
+  document.getElementById('plant-watering').value = p.watering || '7';
+  document.getElementById('plant-last-watered').value = p.lastWatered || '';
   document.getElementById('plant-sun').value = p.sunNotes || '';
   document.getElementById('plant-form-heading').textContent = 'Edit plant';
   document.getElementById('plant-save-btn').textContent = 'Save changes';
@@ -2780,38 +3006,88 @@ function editPlant(id){
 
 function deleteFromPlantForm(){
   const editingId = document.getElementById('plant-editing-id').value;
-  if(editingId){ data.plants = data.plants.filter(x => x.id !== editingId); saveData(); }
+  if(editingId){
+    const p = data.plants.find(x => x.id === editingId);
+    if(p && p.reminderScheduleId){ data.schedule = removeById(data.schedule, p.reminderScheduleId); }
+    data.plants = removeById(data.plants, editingId);
+    saveData();
+  }
   toggleForm('plant');
   renderAll();
+}
+
+function syncPlantReminder(plant){
+  if(!plant.lastWatered || !plant.watering){
+    if(plant.reminderScheduleId){ data.schedule = removeById(data.schedule, plant.reminderScheduleId); plant.reminderScheduleId = ''; }
+    return;
+  }
+  const nextDate = new Date(plant.lastWatered + 'T00:00:00');
+  nextDate.setDate(nextDate.getDate() + Number(plant.watering));
+  const dueIso = isoOf(nextDate);
+  const title = `Water ${plant.name}`;
+  let ev = plant.reminderScheduleId ? data.schedule.find(s => s.id === plant.reminderScheduleId) : null;
+  if(ev){
+    Object.assign(ev, { date: dueIso, title, type: 'personal' });
+  } else {
+    const newEv = { id: uid(), date: dueIso, time:'', endTime:'', title, employer:'', venue:'', notes:'', type:'personal' };
+    data.schedule.push(newEv);
+    plant.reminderScheduleId = newEv.id;
+  }
+  data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
 }
 
 function savePlant(){
   const editingId = document.getElementById('plant-editing-id').value;
   const name = document.getElementById('plant-name').value.trim();
   const species = document.getElementById('plant-species').value.trim();
-  const watering = document.getElementById('plant-watering').value.trim();
+  const watering = document.getElementById('plant-watering').value;
+  const lastWatered = document.getElementById('plant-last-watered').value;
   const sunNotes = document.getElementById('plant-sun').value.trim();
   if(!name) return;
+  let plant;
   if(editingId){
-    const p = data.plants.find(x => x.id === editingId);
-    if(p) Object.assign(p, { name, species, watering, sunNotes });
+    plant = data.plants.find(x => x.id === editingId);
+    if(plant) Object.assign(plant, { name, species, watering, lastWatered, sunNotes });
   } else {
-    data.plants.push({ id: uid(), name, species, watering, sunNotes });
+    plant = { id: uid(), name, species, watering, lastWatered, sunNotes, reminderScheduleId: '' };
+    data.plants.push(plant);
   }
+  if(plant) syncPlantReminder(plant);
   saveData();
   toggleForm('plant');
+  renderAll();
+}
+
+function waterPlantToday(id){
+  const p = data.plants.find(x => x.id === id);
+  if(!p) return;
+  p.lastWatered = todayISO();
+  syncPlantReminder(p);
+  saveData();
   renderAll();
 }
 
 function renderPlants(){
   const el = document.getElementById('plants-list');
   el.innerHTML = data.plants.length ? data.plants.map(p => `
-    <div class="contact-card" onclick="editPlant('${p.id}')">
-      <div class="contact-name">${escapeHtml(p.name)}</div>
-      ${p.species ? `<div class="contact-sub">${escapeHtml(p.species)}</div>` : ''}
-      ${p.watering ? `<div class="contact-sub">Watering: ${escapeHtml(p.watering)}</div>` : ''}
-      ${p.sunNotes ? `<div class="contact-sub">${escapeHtml(p.sunNotes)}</div>` : ''}
+    <div class="row">
+      <div class="checkbox" title="Mark watered today" onclick="waterPlantToday('${p.id}')"></div>
+      <div class="body" style="cursor:pointer;" onclick="editPlant('${p.id}')">
+        <div class="title">${escapeHtml(p.name)}</div>
+        ${p.species ? `<div class="sub">${escapeHtml(p.species)}</div>` : ''}
+        <div class="sub">${WATERING_LABELS[p.watering] || 'Every week'}${p.lastWatered ? ' — last watered ' + fmtDate(p.lastWatered) : ''}</div>
+        ${p.sunNotes ? `<div class="sub">${escapeHtml(p.sunNotes)}</div>` : ''}
+      </div>
+      <div class="del" onclick="event.stopPropagation(); deletePlantDirect('${p.id}')">✕</div>
     </div>`).join('') : '<div class="empty">No plants added yet.</div>';
+}
+
+function deletePlantDirect(id){
+  const p = data.plants.find(x => x.id === id);
+  if(p && p.reminderScheduleId){ data.schedule = removeById(data.schedule, p.reminderScheduleId); }
+  data.plants = removeById(data.plants, id);
+  saveData();
+  renderAll();
 }
 
 /* ---- Friends ---- */
@@ -2865,7 +3141,7 @@ function editFriend(id){
 
 function deleteFromFriendForm(){
   const editingId = document.getElementById('friend-editing-id').value;
-  if(editingId){ data.friends = data.friends.filter(x => x.id !== editingId); saveData(); }
+  if(editingId){ data.friends = removeById(data.friends, editingId); saveData(); }
   toggleForm('friend');
   renderAll();
 }
@@ -2905,7 +3181,7 @@ function renderFriends(){
   const el = document.getElementById('friends-list');
   const sorted = [...data.friends].sort((a,b) => a.name.localeCompare(b.name));
   el.innerHTML = sorted.length ? sorted.map(f => `
-    <div class="contact-card" onclick="editFriend('${f.id}')">
+    <div class="contact-card friend-card" onclick="editFriend('${f.id}')">
       <div class="contact-name">${escapeHtml(f.name)}</div>
       ${f.birthday ? `<div class="contact-sub">Birthday: ${monthDayLabel(f.birthday)}</div>` : ''}
     </div>`).join('') : '<div class="empty">No friends added yet.</div>';
@@ -2926,7 +3202,7 @@ function syncBillReminder(bill){
     }
     data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   } else if(bill.reminderScheduleId){
-    data.schedule = data.schedule.filter(s => s.id !== bill.reminderScheduleId);
+    data.schedule = removeById(data.schedule, bill.reminderScheduleId);
     bill.reminderScheduleId = '';
   }
 }
@@ -2969,8 +3245,8 @@ function deleteFromBillForm(){
 
 function deleteBillDirect(id){
   const b = data.bills.find(x => x.id === id);
-  if(b && b.reminderScheduleId){ data.schedule = data.schedule.filter(s => s.id !== b.reminderScheduleId); }
-  data.bills = data.bills.filter(x => x.id !== id);
+  if(b && b.reminderScheduleId){ data.schedule = removeById(data.schedule, b.reminderScheduleId); }
+  data.bills = removeById(data.bills, id);
   saveData();
   renderAll();
 }
@@ -3068,7 +3344,7 @@ function togglePlan(id){
 }
 
 function deletePlan(id){
-  data.planning = data.planning.filter(p => p.id !== id);
+  data.planning = removeById(data.planning, id);
   saveData();
   renderAll();
 }
@@ -3123,7 +3399,7 @@ function toggleRoutineItem(key, id){
 }
 
 function deleteRoutineItem(key, id){
-  data.routines[key].items = data.routines[key].items.filter(i => i.id !== id);
+  data.routines[key].items = removeById(data.routines[key].items, id);
   saveData();
   renderAll();
 }
@@ -3259,6 +3535,7 @@ function renderAll(){
 
   renderTodayHabits();
   renderTodayMeals();
+  renderTodayPets();
   renderTodayRoutines();
 
   // Latest note
