@@ -77,7 +77,7 @@
     display:flex;
     flex-direction:column;
     position:relative;
-    padding-bottom:76px;
+    padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px));
   }
   .view{ padding:22px 20px 12px; display:none; }
   .view.active{ display:block; }
@@ -212,6 +212,53 @@
   .add-form .form-row > *{ flex:1; }
   .form-heading{ font-size:13px; color:var(--ink-dim); font-weight:600; }
   .field-label{ font-size:11px; color:var(--ink-dim); margin-bottom:4px; }
+
+  /* Bills */
+  .bills-summary-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .bills-summary-item{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .bills-summary-item .label{ display:block; font-size:11px; color:var(--ink-dim); margin-bottom:2px; }
+  .bills-summary-item .value{ display:block; font-size:17px; font-weight:700; }
+  .bill-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 0;
+    border-bottom:1px dashed var(--rule);
+    cursor:pointer;
+  }
+  .bill-row:last-child{ border-bottom:none; }
+  .due-circle{
+    width:36px; height:36px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    font-weight:700;
+    color:#fff;
+    flex-shrink:0;
+  }
+  .bill-body{ flex:1; min-width:0; }
+  .bill-type-badge{
+    font-size:11px;
+    font-weight:600;
+    padding:3px 9px;
+    border-radius:10px;
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  .bill-type-badge.type-manual{ background:rgba(224,33,138,0.15); color:var(--p-magenta); }
+  .bill-type-badge.type-automatic{ background:rgba(15,175,163,0.15); color:var(--amber); }
   .form-actions{ display:flex; gap:8px; justify-content:flex-end; }
   #schedule-delete-btn{ margin-right:auto; }
   .btn{
@@ -480,6 +527,7 @@
     background:var(--panel);
     border-top:1px solid var(--rule);
     display:flex;
+    padding-bottom:env(safe-area-inset-bottom, 0px);
   }
   nav button{
     flex:1;
@@ -1324,6 +1372,7 @@
   <!-- BILLS -->
   <div class="view" id="view-bills">
     <div class="view-title">Bills</div>
+    <div class="bills-summary-row" id="bills-summary"></div>
     <div class="fab" onclick="openNewBillForm()"><span class="plus">+</span> Add bill</div>
     <div class="add-form" id="form-bill">
       <div class="form-heading" id="bill-form-heading">New bill</div>
@@ -1350,8 +1399,20 @@
           <option value="automatic">Automatic (autopay)</option>
         </select>
       </div>
-      <div class="form-actions">
+      <textarea id="bill-notes" placeholder="Notes (optional)"></textarea>
+
+      <div id="bill-paid-confirm" style="display:none;">
+        <div class="field-label">Paid on</div>
+        <input type="date" id="bill-paid-date">
+        <div class="form-actions">
+          <button class="btn" onclick="cancelMarkPaid()">Cancel</button>
+          <button class="btn primary" onclick="confirmMarkPaid()">Confirm payment</button>
+        </div>
+      </div>
+
+      <div class="form-actions" id="bill-main-actions">
         <button class="btn" id="bill-delete-btn" style="display:none;color:var(--danger);border-color:var(--danger);" onclick="deleteFromBillForm()">Delete</button>
+        <button class="btn" id="bill-mark-paid-btn" style="display:none;" onclick="showMarkPaidConfirm()">Mark Paid</button>
         <button class="btn" onclick="toggleForm('bill')">Cancel</button>
         <button class="btn primary" id="bill-save-btn" onclick="saveBill()">Add bill</button>
       </div>
@@ -1542,6 +1603,15 @@ function ensureShape(){
   data.plants = data.plants || [];
   data.friends = data.friends || [];
   data.bills = data.bills || [];
+  data.bills.forEach(b => {
+    // Migrate old schedule-event reminders (pre-task-based reminders) away.
+    if(b.reminderScheduleId){
+      data.schedule = removeById(data.schedule, b.reminderScheduleId);
+      b.reminderScheduleId = '';
+    }
+    b.reminderTaskId = b.reminderTaskId || '';
+    b.notes = b.notes || '';
+  });
 
   data.routines = data.routines || {};
   ['morning','night'].forEach(key => {
@@ -1993,8 +2063,11 @@ function renderDayView(){
   const iso = isoOf(dayAnchor);
   document.getElementById('day-range').textContent = dayAnchor.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
 
+  const prevDate = new Date(dayAnchor);
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevIso = isoOf(prevDate);
+
   const dayItems = data.schedule.filter(s => s.date === iso);
-  const timed = dayItems.filter(s => s.time);
   const untimed = dayItems.filter(s => !s.time);
 
   const untimedEl = document.getElementById('day-unscheduled');
@@ -2011,16 +2084,30 @@ function renderDayView(){
   }
   hoursEl.innerHTML = hoursHtml;
 
-  // Layout timed events with simple greedy column packing
-  const events = timed.map(s => {
+  // Build blocks: today's timed events (clamped at midnight if they run past
+  // it), plus a "spillover" sliver for anything that started yesterday and
+  // runs into today.
+  const blocks = [];
+  dayItems.filter(s => s.time).forEach(s => {
     const start = minutesOf(s.time);
     let end = s.endTime ? minutesOf(s.endTime) : start + 60;
-    if(end <= start) end = start + 30;
-    return { s, start, end };
-  }).sort((a,b) => a.start - b.start);
+    if(end <= start){
+      blocks.push({ s, start, end: 1440, continues:true });
+    } else {
+      blocks.push({ s, start, end });
+    }
+  });
+  data.schedule.filter(s => s.date === prevIso && s.time).forEach(s => {
+    const start = minutesOf(s.time);
+    const end = s.endTime ? minutesOf(s.endTime) : start + 60;
+    if(end <= start){
+      blocks.push({ s, start: 0, end, fromPrev:true });
+    }
+  });
+  blocks.sort((a,b) => a.start - b.start);
 
   const colEnds = [];
-  events.forEach(ev => {
+  blocks.forEach(ev => {
     let placed = false;
     for(let c=0; c<colEnds.length; c++){
       if(colEnds[c] <= ev.start){
@@ -2039,15 +2126,16 @@ function renderDayView(){
 
   const layerEl = document.getElementById('day-events-layer');
   layerEl.style.height = (24*HOUR_HEIGHT) + 'px';
-  layerEl.innerHTML = events.map(ev => {
+  layerEl.innerHTML = blocks.map(ev => {
     const top = (ev.start/60)*HOUR_HEIGHT;
     const height = Math.max(((ev.end-ev.start)/60)*HOUR_HEIGHT, 15);
     const widthPct = 100/maxCols;
     const leftPct = ev.col*widthPct;
     const showTime = height >= 26;
+    const timeLabel = ev.fromPrev ? `until ${ev.s.endTime}` : (ev.continues ? `${ev.s.time} onward` : `${ev.s.time}${ev.s.endTime ? '–' + ev.s.endTime : ''}`);
     return `<div class="day-event-block type-${ev.s.type || 'call'}" style="top:${top}px;height:${height}px;left:${leftPct}%;width:calc(${widthPct}% - 4px);" onclick="editSchedule('${ev.s.id}')">
-      <div class="de-title">${escapeHtml(ev.s.title)}</div>
-      ${showTime ? `<div class="de-time">${ev.s.time}${ev.s.endTime ? '–' + ev.s.endTime : ''}</div>` : ''}
+      <div class="de-title">${escapeHtml(ev.s.title)}${ev.fromPrev ? ' (from yesterday)' : ''}</div>
+      ${showTime ? `<div class="de-time">${timeLabel}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -3188,22 +3276,34 @@ function renderFriends(){
 }
 
 /* ---- Bills ---- */
-function syncBillReminder(bill){
-  if(bill.type === 'manual'){
-    const title = `Pay ${bill.payee}`;
-    const notes = bill.amount ? `Amount: $${Number(bill.amount).toFixed(2)}` : '';
-    let ev = bill.reminderScheduleId ? data.schedule.find(s => s.id === bill.reminderScheduleId) : null;
-    if(ev){
-      Object.assign(ev, { date: bill.dueDate, title, notes, type: 'personal' });
+function dueDateColor(daysUntil){
+  const clamped = Math.max(0, Math.min(30, daysUntil));
+  const t = 1 - (clamped/30);
+  const blue = [47,125,225];
+  const red = [226,75,114];
+  const r = Math.round(blue[0] + (red[0]-blue[0])*t);
+  const g = Math.round(blue[1] + (red[1]-blue[1])*t);
+  const b = Math.round(blue[2] + (red[2]-blue[2])*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function syncBillReminderTask(bill){
+  if(bill.type === 'manual' && bill.dueDate){
+    const d = new Date(bill.dueDate + 'T00:00:00');
+    d.setDate(d.getDate() - 3);
+    const reminderDate = isoOf(d);
+    const text = `Pay ${bill.payee}` + (bill.amount ? ` — $${Number(bill.amount).toFixed(2)}` : '');
+    let t = bill.reminderTaskId ? data.tasks.find(x => x.id === bill.reminderTaskId) : null;
+    if(t){
+      Object.assign(t, { text, due: reminderDate });
     } else {
-      const newEv = { id: uid(), date: bill.dueDate, time:'', endTime:'', title, employer:'', venue:'', notes, type:'personal' };
-      data.schedule.push(newEv);
-      bill.reminderScheduleId = newEv.id;
+      const newTask = { id: uid(), text, due: reminderDate, category: 'other', done:false };
+      data.tasks.push(newTask);
+      bill.reminderTaskId = newTask.id;
     }
-    data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
-  } else if(bill.reminderScheduleId){
-    data.schedule = removeById(data.schedule, bill.reminderScheduleId);
-    bill.reminderScheduleId = '';
+  } else if(bill.reminderTaskId){
+    data.tasks = removeById(data.tasks, bill.reminderTaskId);
+    bill.reminderTaskId = '';
   }
 }
 
@@ -3215,9 +3315,12 @@ function openNewBillForm(){
   document.getElementById('bill-last-paid').value = '';
   document.getElementById('bill-frequency').value = 'monthly';
   document.getElementById('bill-type').value = 'manual';
+  document.getElementById('bill-notes').value = '';
   document.getElementById('bill-form-heading').textContent = 'New bill';
   document.getElementById('bill-save-btn').textContent = 'Add bill';
   document.getElementById('bill-delete-btn').style.display = 'none';
+  document.getElementById('bill-mark-paid-btn').style.display = 'none';
+  cancelMarkPaid();
   document.getElementById('form-bill').classList.add('open');
 }
 
@@ -3231,9 +3334,12 @@ function editBill(id){
   document.getElementById('bill-last-paid').value = b.lastPaid || '';
   document.getElementById('bill-frequency').value = b.frequency || 'monthly';
   document.getElementById('bill-type').value = b.type || 'manual';
+  document.getElementById('bill-notes').value = b.notes || '';
   document.getElementById('bill-form-heading').textContent = 'Edit bill';
   document.getElementById('bill-save-btn').textContent = 'Save changes';
   document.getElementById('bill-delete-btn').style.display = 'inline-block';
+  document.getElementById('bill-mark-paid-btn').style.display = 'inline-block';
+  cancelMarkPaid();
   document.getElementById('form-bill').classList.add('open');
 }
 
@@ -3245,7 +3351,7 @@ function deleteFromBillForm(){
 
 function deleteBillDirect(id){
   const b = data.bills.find(x => x.id === id);
-  if(b && b.reminderScheduleId){ data.schedule = removeById(data.schedule, b.reminderScheduleId); }
+  if(b && b.reminderTaskId){ data.tasks = removeById(data.tasks, b.reminderTaskId); }
   data.bills = removeById(data.bills, id);
   saveData();
   renderAll();
@@ -3259,47 +3365,87 @@ function saveBill(){
   const lastPaid = document.getElementById('bill-last-paid').value;
   const frequency = document.getElementById('bill-frequency').value;
   const type = document.getElementById('bill-type').value;
+  const notes = document.getElementById('bill-notes').value.trim();
   if(!payee || !dueDate) return;
   let bill;
   if(editingId){
     bill = data.bills.find(x => x.id === editingId);
-    if(bill) Object.assign(bill, { payee, amount, dueDate, lastPaid, frequency, type });
+    if(bill) Object.assign(bill, { payee, amount, dueDate, lastPaid, frequency, type, notes });
   } else {
-    bill = { id: uid(), payee, amount, dueDate, lastPaid, frequency, type, reminderScheduleId: '' };
+    bill = { id: uid(), payee, amount, dueDate, lastPaid, frequency, type, notes, reminderTaskId: '' };
     data.bills.push(bill);
   }
-  if(bill) syncBillReminder(bill);
+  if(bill) syncBillReminderTask(bill);
   saveData();
   toggleForm('bill');
   renderAll();
 }
 
-function markBillPaid(id){
-  const b = data.bills.find(x => x.id === id);
-  if(!b) return;
-  const paidDate = b.dueDate;
+function showMarkPaidConfirm(){
+  document.getElementById('bill-paid-date').value = todayISO();
+  document.getElementById('bill-paid-confirm').style.display = 'block';
+  document.getElementById('bill-main-actions').style.display = 'none';
+}
+
+function cancelMarkPaid(){
+  document.getElementById('bill-paid-confirm').style.display = 'none';
+  document.getElementById('bill-main-actions').style.display = 'flex';
+}
+
+function confirmMarkPaid(){
+  const editingId = document.getElementById('bill-editing-id').value;
+  const paidDate = document.getElementById('bill-paid-date').value;
+  const b = data.bills.find(x => x.id === editingId);
+  if(!b || !paidDate) return;
+  b.lastPaid = paidDate;
   const d = new Date(b.dueDate + 'T00:00:00');
   if(b.frequency === 'yearly'){ d.setFullYear(d.getFullYear() + 1); } else { d.setMonth(d.getMonth() + 1); }
-  b.lastPaid = paidDate;
   b.dueDate = isoOf(d);
-  syncBillReminder(b);
+  syncBillReminderTask(b);
   saveData();
+  toggleForm('bill');
   renderAll();
 }
 
+function renderBillsSummary(){
+  const el = document.getElementById('bills-summary');
+  const ym = currentMonthKey();
+  let paid = 0, due = 0;
+  data.bills.forEach(b => {
+    const amt = Number(b.amount) || 0;
+    if(b.lastPaid && b.lastPaid.startsWith(ym)) paid += amt;
+    if(b.dueDate && b.dueDate.startsWith(ym)) due += amt;
+  });
+  el.innerHTML = `
+    <div class="bills-summary-item">
+      <span class="label">Paid this month</span>
+      <span class="value">$${paid.toFixed(2)}</span>
+    </div>
+    <div class="bills-summary-item">
+      <span class="label">Due this month</span>
+      <span class="value">$${due.toFixed(2)}</span>
+    </div>`;
+}
+
 function renderBills(){
+  renderBillsSummary();
   const el = document.getElementById('bills-list');
+  const today = todayISO();
   const sorted = [...data.bills].sort((a,b) => (a.dueDate||'9999').localeCompare(b.dueDate||'9999'));
-  el.innerHTML = sorted.length ? sorted.map(b => `
-    <div class="row">
-      <div class="checkbox" title="Mark this bill paid and roll to the next due date" onclick="markBillPaid('${b.id}')"></div>
-      <div class="body" style="cursor:pointer;" onclick="editBill('${b.id}')">
+  el.innerHTML = sorted.length ? sorted.map(b => {
+    const daysUntil = Math.round((new Date(b.dueDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    return `<div class="bill-row" onclick="editBill('${b.id}')">
+      <div class="due-circle" style="background:${dueDateColor(daysUntil)};">${daysUntil}</div>
+      <div class="bill-body">
         <div class="title">${escapeHtml(b.payee)}${b.amount ? ' — $' + Number(b.amount).toFixed(2) : ''}</div>
-        <div class="sub">Due ${fmtDate(b.dueDate)} (${b.frequency === 'yearly' ? 'Yearly' : 'Monthly'}, ${b.type === 'automatic' ? 'Automatic' : 'Manual'})</div>
+        <div class="sub">Due ${fmtDate(b.dueDate)} (${b.frequency === 'yearly' ? 'Yearly' : 'Monthly'})</div>
         ${b.lastPaid ? `<div class="sub">Last paid ${fmtDate(b.lastPaid)}</div>` : ''}
+        ${b.notes ? `<div class="sub sub-notes">${escapeHtml(b.notes)}</div>` : ''}
       </div>
+      <span class="bill-type-badge type-${b.type === 'automatic' ? 'automatic' : 'manual'}">${b.type === 'automatic' ? 'Automatic' : 'Manual'}</span>
       <div class="del" onclick="event.stopPropagation(); deleteBillDirect('${b.id}')">✕</div>
-    </div>`).join('') : '<div class="empty">No bills tracked yet.</div>';
+    </div>`;
+  }).join('') : '<div class="empty">No bills tracked yet.</div>';
 }
 
 function openNewPlanForm(){
