@@ -215,7 +215,8 @@
 
   /* Bills */
   .bills-summary-row{
-    display:flex;
+    display:grid;
+    grid-template-columns:1fr 1fr;
     gap:10px;
     margin-bottom:16px;
   }
@@ -1417,7 +1418,7 @@
         <button class="btn primary" id="bill-save-btn" onclick="saveBill()">Add bill</button>
       </div>
     </div>
-    <div id="bills-list"></div>
+    <div id="bills-list" style="padding-bottom:60px;"></div>
   </div>
 
   <!-- ROUTINES -->
@@ -3407,23 +3408,41 @@ function confirmMarkPaid(){
   renderAll();
 }
 
+function monthKeyOffset(offset){
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
 function renderBillsSummary(){
   const el = document.getElementById('bills-summary');
-  const ym = currentMonthKey();
-  let paid = 0, due = 0;
+  const thisYm = currentMonthKey();
+  const lastYm = monthKeyOffset(-1);
+  const nextYm = monthKeyOffset(1);
+  let paidThis = 0, dueThis = 0, paidLast = 0, dueNext = 0;
   data.bills.forEach(b => {
     const amt = Number(b.amount) || 0;
-    if(b.lastPaid && b.lastPaid.startsWith(ym)) paid += amt;
-    if(b.dueDate && b.dueDate.startsWith(ym)) due += amt;
+    if(b.lastPaid && b.lastPaid.startsWith(thisYm)) paidThis += amt;
+    if(b.dueDate && b.dueDate.startsWith(thisYm)) dueThis += amt;
+    if(b.lastPaid && b.lastPaid.startsWith(lastYm)) paidLast += amt;
+    if(b.dueDate && b.dueDate.startsWith(nextYm)) dueNext += amt;
   });
   el.innerHTML = `
     <div class="bills-summary-item">
+      <span class="label">Paid last month</span>
+      <span class="value" style="color:var(--slate);">$${paidLast.toFixed(2)}</span>
+    </div>
+    <div class="bills-summary-item">
       <span class="label">Paid this month</span>
-      <span class="value">$${paid.toFixed(2)}</span>
+      <span class="value" style="color:var(--danger);">$${paidThis.toFixed(2)}</span>
     </div>
     <div class="bills-summary-item">
       <span class="label">Due this month</span>
-      <span class="value">$${due.toFixed(2)}</span>
+      <span class="value" style="color:var(--slate);">$${dueThis.toFixed(2)}</span>
+    </div>
+    <div class="bills-summary-item">
+      <span class="label">Due next month</span>
+      <span class="value" style="color:var(--danger);">$${dueNext.toFixed(2)}</span>
     </div>`;
 }
 
