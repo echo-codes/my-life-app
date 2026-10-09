@@ -32,6 +32,7 @@
     --cat-friends:var(--slate);
     --cat-personal:var(--event-personal);
     --cat-other:#9C9186;
+    --reminder:#E5484D;
   }
   body.personal-mode{
     --bg:#E9F7F5;
@@ -615,6 +616,8 @@
     cursor:pointer;
   }
 
+  .email-link{ color:var(--slate); font-size:12.5px; text-decoration:underline; }
+
   ::selection{ background:var(--amber); color:var(--bg); }
 
   /* Mode toggle bar */
@@ -1098,6 +1101,7 @@
       <input type="text" id="sched-title" placeholder="What is it">
       <input type="text" id="sched-employer" placeholder="Employer">
       <input type="text" id="sched-venue" placeholder="Venue / location (optional)">
+      <input type="url" id="sched-email-link" placeholder="Email link (optional)">
       <textarea id="sched-notes" placeholder="Notes (optional)"></textarea>
       <div class="form-row" id="sched-repeat-row">
         <select id="sched-repeat" onchange="updateRepeatUI()">
@@ -1187,6 +1191,10 @@
       <div class="form-heading" id="task-form-heading">New task</div>
       <input type="hidden" id="task-editing-id" value="">
       <input type="text" id="task-text" placeholder="What needs doing">
+      <select id="task-kind">
+        <option value="task">Task</option>
+        <option value="reminder">Reminder</option>
+      </select>
       <div class="form-row">
         <input type="date" id="task-due">
         <select id="task-category">
@@ -1613,6 +1621,16 @@ function ensureShape(){
     b.reminderTaskId = b.reminderTaskId || '';
     b.notes = b.notes || '';
   });
+  data.tasks = data.tasks || [];
+  // One-time migration: existing bill reminder tasks become reminders,
+  // everything else without a kind becomes a regular task.
+  data.bills.forEach(b => {
+    if(b.reminderTaskId){
+      const rt = data.tasks.find(t => t.id === b.reminderTaskId);
+      if(rt && !rt.kind) rt.kind = 'reminder';
+    }
+  });
+  data.tasks.forEach(t => { t.kind = t.kind || 'task'; });
 
   data.routines = data.routines || {};
   ['morning','night'].forEach(key => {
@@ -1931,6 +1949,11 @@ function importScheduleEvents(fileInput){
       const parsed = JSON.parse(e.target.result);
       const events = Array.isArray(parsed) ? parsed : (parsed.events || []);
       if(!events.length){ alert('No events found in that file.'); fileInput.value=''; return; }
+      const _keys = new Set(data.schedule.map(s => `${s.date}|${s.time||''}|${s.title}`));
+      const _new = events.filter(ev => !_keys.has(`${ev.date}|${ev.time||''}|${ev.title}`));
+      if(!_new.length){ alert('Nothing new: all of those events are already in your schedule.'); fileInput.value=''; return; }
+      const _preview = _new.slice(0,12).map(ev => ev.date + ' ' + (ev.time||'') + ' ' + ev.title).join('\n');
+      if(!confirm('Add ' + _new.length + ' new event' + (_new.length===1?'':'s') + '?\n\n' + _preview + (_new.length>12 ? '\n...and ' + (_new.length-12) + ' more' : ''))){ fileInput.value=''; return; }
       const existingKeys = new Set(data.schedule.map(s => `${s.date}|${s.time||''}|${s.title}`));
       let added = 0, skipped = 0;
       events.forEach(ev => {
@@ -1945,6 +1968,7 @@ function importScheduleEvents(fileInput){
           employer: ev.employer || '',
           venue: ev.venue || '',
           notes: ev.notes || '',
+          emailLink: ev.emailLink || '',
           type: ev.type || 'personal'
         });
         existingKeys.add(key);
@@ -2159,7 +2183,7 @@ function renderWeek(){
     return `<div class="week-day ${iso===today?'is-today':''}">
       <div class="wd-label">${d.toLocaleDateString(undefined,{weekday:'short'})}<span class="num">${d.getDate()}</span></div>
       <div class="wd-items">
-        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><span class="wi-time mono">${timeRange(s)}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
+        ${items.length ? items.map(s => `<div class="week-item type-${s.type || 'call'}" onclick="editSchedule('${s.id}')"><span class="wi-time mono">${timeRange(s)}</span>${escapeHtml(s.title)}${s.venue ? ' — ' + escapeHtml(s.venue) : ''}${(s.employer || s.client) ? ' (for ' + escapeHtml((s.employer || s.client)) + ')' : ''}${safeUrl(s.emailLink) ? ' <a class="email-link" href="' + safeUrl(s.emailLink) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">✉</a>' : ''}</div>`).join('') : '<div class="week-empty">Nothing scheduled</div>'}
       </div>
     </div>`;
   }).join('');
@@ -2213,6 +2237,7 @@ function renderMonthDayList(){
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
         ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
+        ${emailLinkHtml(s)}
       </div>
       <div class="del" onclick="event.stopPropagation(); deleteSchedule('${s.id}')">✕</div>
     </div></div>`).join('') : '<div class="empty">Nothing this day.</div>';
@@ -2281,6 +2306,7 @@ function resetScheduleForm(){
   document.getElementById('sched-title').value = '';
   document.getElementById('sched-employer').value = '';
   document.getElementById('sched-venue').value = '';
+  document.getElementById('sched-email-link').value = '';
   document.getElementById('sched-notes').value = '';
   document.getElementById('sched-repeat').value = 'none';
   document.getElementById('sched-repeat-until').value = '';
@@ -2304,6 +2330,7 @@ function editSchedule(id){
   document.getElementById('sched-title').value = s.title || '';
   document.getElementById('sched-employer').value = s.employer || s.client || '';
   document.getElementById('sched-venue').value = s.venue || '';
+  document.getElementById('sched-email-link').value = s.emailLink || '';
   document.getElementById('sched-notes').value = s.notes || '';
   document.getElementById('sched-repeat').value = 'none';
   document.getElementById('sched-repeat-until').value = '';
@@ -2324,6 +2351,7 @@ function duplicateSchedule(){
   const title = document.getElementById('sched-title').value;
   const employer = document.getElementById('sched-employer').value;
   const venue = document.getElementById('sched-venue').value;
+  const emailLink = document.getElementById('sched-email-link').value;
   const notes = document.getElementById('sched-notes').value;
   resetScheduleForm();
   document.getElementById('sched-type').value = type;
@@ -2333,6 +2361,7 @@ function duplicateSchedule(){
   document.getElementById('sched-title').value = title;
   document.getElementById('sched-employer').value = employer;
   document.getElementById('sched-venue').value = venue;
+  document.getElementById('sched-email-link').value = emailLink;
   document.getElementById('sched-notes').value = notes;
   document.getElementById('schedule-form-heading').textContent = 'New entry (duplicate)';
   document.getElementById('sched-date').focus();
@@ -2366,6 +2395,7 @@ function saveSchedule(){
   const title = document.getElementById('sched-title').value.trim();
   const employer = document.getElementById('sched-employer').value.trim();
   const venue = document.getElementById('sched-venue').value.trim();
+  const emailLink = document.getElementById('sched-email-link').value.trim();
   const notes = document.getElementById('sched-notes').value.trim();
   const repeat = document.getElementById('sched-repeat').value;
   const repeatUntil = document.getElementById('sched-repeat-until').value;
@@ -2373,19 +2403,19 @@ function saveSchedule(){
   if(type === 'call' && !employer){ return; }
   if(editingId){
     const item = data.schedule.find(s => s.id === editingId);
-    if(item){ Object.assign(item, { date, type, time, endTime, title, employer, venue, notes }); }
+    if(item){ Object.assign(item, { date, type, time, endTime, title, employer, venue, notes, emailLink }); }
   } else if(repeat !== 'none' && repeatUntil){
     const seriesId = uid();
     let d = new Date(date + 'T00:00:00');
     const until = new Date(repeatUntil + 'T00:00:00');
     let count = 0;
     while(d <= until && count < 52){
-      data.schedule.push({ id: uid(), seriesId, date: isoOf(d), time, endTime, title, employer, venue, notes, type });
+      data.schedule.push({ id: uid(), seriesId, date: isoOf(d), time, endTime, title, employer, venue, notes, type, emailLink });
       d = addRepeatInterval(d, repeat);
       count++;
     }
   } else {
-    data.schedule.push({ id: uid(), date, time, endTime, title, employer, venue, notes, type });
+    data.schedule.push({ id: uid(), date, time, endTime, title, employer, venue, notes, type, emailLink });
   }
   data.schedule.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
   saveData();
@@ -2405,6 +2435,7 @@ function openNewTaskForm(){
   document.getElementById('task-text').value = '';
   document.getElementById('task-due').value = '';
   document.getElementById('task-category').value = 'work';
+  document.getElementById('task-kind').value = 'task';
   document.getElementById('task-form-heading').textContent = 'New task';
   document.getElementById('task-save-btn').textContent = 'Add task';
   document.getElementById('task-delete-btn').style.display = 'none';
@@ -2418,6 +2449,7 @@ function editTask(id){
   document.getElementById('task-text').value = t.text;
   document.getElementById('task-due').value = t.due || '';
   document.getElementById('task-category').value = t.category || 'work';
+  document.getElementById('task-kind').value = t.kind || 'task';
   document.getElementById('task-form-heading').textContent = 'Edit task';
   document.getElementById('task-save-btn').textContent = 'Save changes';
   document.getElementById('task-delete-btn').style.display = 'inline-block';
@@ -2435,12 +2467,13 @@ function saveTask(){
   const text = document.getElementById('task-text').value.trim();
   const due = document.getElementById('task-due').value;
   const category = document.getElementById('task-category').value;
+  const kind = document.getElementById('task-kind').value;
   if(!text) return;
   if(editingId){
     const t = data.tasks.find(x => x.id === editingId);
-    if(t) Object.assign(t, { text, due, category });
+    if(t) Object.assign(t, { text, due, category, kind });
   } else {
-    data.tasks.push({ id: uid(), text, due, category, done:false });
+    data.tasks.push({ id: uid(), text, due, category, done:false, kind });
   }
   saveData();
   toggleForm('task');
@@ -3239,7 +3272,7 @@ function reachOutFriend(){
   const editingId = document.getElementById('friend-editing-id').value;
   const f = data.friends.find(x => x.id === editingId);
   if(!f) return;
-  data.tasks.push({ id: uid(), text: `Reach out to ${f.name}`, due: tomorrowISO(), category: 'friends', done:false });
+  data.tasks.push({ id: uid(), text: `Reach out to ${f.name}`, due: tomorrowISO(), category: 'friends', done:false, kind:'task' });
   saveData();
   toggleForm('friend');
   renderAll();
@@ -3298,7 +3331,7 @@ function syncBillReminderTask(bill){
     if(t){
       Object.assign(t, { text, due: reminderDate });
     } else {
-      const newTask = { id: uid(), text, due: reminderDate, category: 'other', done:false };
+      const newTask = { id: uid(), text, due: reminderDate, category: 'other', done:false, kind:'reminder' };
       data.tasks.push(newTask);
       bill.reminderTaskId = newTask.id;
     }
@@ -3683,6 +3716,7 @@ function renderAll(){
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
         ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
+        ${emailLinkHtml(s)}
       </div>
     </div></div>`).join('') : '<div class="empty">Nothing on the books today.</div>';
 
@@ -3693,7 +3727,7 @@ function renderAll(){
     <div class="row">
       <div class="checkbox" onclick="toggleTask('${t.id}')"></div>
       <div class="body">
-        <div class="title" style="color:var(--cat-${t.category || 'other'});">${escapeHtml(t.text)}</div>
+        <div class="title" style="color:${t.kind === 'reminder' ? 'var(--reminder)' : 'var(--cat-' + (t.category || 'other') + ')'};">${escapeHtml(t.text)}</div>
         <div class="task-due ${t.due < today ? 'overdue' : ''} mono">${t.due < today ? 'overdue — ' : 'due '}${fmtDate(t.due)}</div>
       </div>
     </div>`).join('') : '<div class="empty">Nothing due today.</div>';
@@ -3730,6 +3764,7 @@ function renderAll(){
         ${s.venue ? `<div class="sub">${escapeHtml(s.venue)}</div>` : ''}
         ${(s.employer || s.client) ? `<div class="sub">for ${escapeHtml((s.employer || s.client))}</div>` : ''}
         ${s.notes ? `<div class="sub sub-notes">${escapeHtml(s.notes)}</div>` : ''}
+        ${emailLinkHtml(s)}
       </div>
       <div class="del" onclick="event.stopPropagation(); deleteSchedule('${s.id}')">✕</div>
     </div></div>`;
@@ -3743,10 +3778,24 @@ function renderAll(){
   if(scheduleMode === 'month') renderMonth();
 
   // Tasks
-  const openTasks = data.tasks.filter(t => !t.done).sort((a,b) => (a.due||'9999').localeCompare(b.due||'9999'));
+  const sortOpen = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');
+  const openTasks = data.tasks.filter(t => !t.done && t.kind !== 'reminder').sort(sortOpen);
+  const openReminders = data.tasks.filter(t => !t.done && t.kind === 'reminder').sort(sortOpen);
+  const reminderSectionHtml = openReminders.length ? `<div class="section" style="margin-top:14px;">
+      <div class="section-label"><span>Reminders</span></div>
+      ${openReminders.map(t => `
+    <div class="row">
+      <div class="checkbox" onclick="toggleTask('${t.id}')"></div>
+      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')">
+        <div class="title task-text" style="color:var(--reminder);">${escapeHtml(t.text)}</div>
+        ${t.due ? `<div class="task-due ${t.due < today ? 'overdue' : ''} mono">${t.due < today ? 'overdue — ' : 'due '}${fmtDate(t.due)}</div>` : ''}
+      </div>
+      <div class="del" onclick="deleteTask('${t.id}')">✕</div>
+    </div>`).join('')}
+    </div>` : '';
   const doneTasks = data.tasks.filter(t => t.done);
   const openEl = document.getElementById('task-list-open');
-  openEl.innerHTML = openTasks.length ? openTasks.map(t => `
+  openEl.innerHTML = (openTasks.length ? openTasks.map(t => `
     <div class="row">
       <div class="checkbox" onclick="toggleTask('${t.id}')"></div>
       <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')">
@@ -3754,13 +3803,13 @@ function renderAll(){
         ${t.due ? `<div class="task-due ${t.due < today ? 'overdue' : ''} mono">${t.due < today ? 'overdue — ' : 'due '}${fmtDate(t.due)}</div>` : ''}
       </div>
       <div class="del" onclick="deleteTask('${t.id}')">✕</div>
-    </div>`).join('') : '<div class="empty">Nothing open. Nice.</div>';
+    </div>`).join('') : (openReminders.length ? '' : '<div class="empty">Nothing open. Nice.</div>')) + reminderSectionHtml;
 
   const doneEl = document.getElementById('task-list-done');
   doneEl.innerHTML = doneTasks.length ? doneTasks.map(t => `
     <div class="row">
       <div class="checkbox checked" onclick="toggleTask('${t.id}')"></div>
-      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')"><div class="title task-text done" style="color:var(--cat-${t.category || 'other'});">${escapeHtml(t.text)}</div></div>
+      <div class="body" style="cursor:pointer;" onclick="editTask('${t.id}')"><div class="title task-text done" style="color:${t.kind === 'reminder' ? 'var(--reminder)' : 'var(--cat-' + (t.category || 'other') + ')'};">${escapeHtml(t.text)}</div></div>
       <div class="del" onclick="deleteTask('${t.id}')">✕</div>
     </div>`).join('') : '<div class="empty">Nothing finished yet.</div>';
 
@@ -3786,6 +3835,17 @@ function renderAll(){
   renderPlants();
   renderFriends();
   renderBills();
+}
+
+function safeUrl(u){
+  u = (u || '').trim();
+  if(!/^(https?:\/\/|mailto:)/i.test(u)) return '';
+  return u.replace(/"/g,'%22').replace(/'/g,'%27').replace(/</g,'%3C').replace(/>/g,'%3E');
+}
+
+function emailLinkHtml(s){
+  const u = safeUrl(s.emailLink);
+  return u ? `<div class="sub"><a class="email-link" href="${u}" target="_blank" rel="noopener" onclick="event.stopPropagation();">✉ Email</a></div>` : '';
 }
 
 function escapeHtml(str){
